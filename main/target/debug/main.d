@@ -1,1 +1,1 @@
-/home/tomg/code/2048-Rust-AI/main/target/debug/main: /home/tomg/code/2048-Rust-AI/main/src/main.rs
+C:\Users\quent\Quentin\CODE\Rust\Projects\2048-Rust-AI\main\target\debug\main.exe: C:\Users\quent\Quentin\CODE\Rust\Projects\2048-Rust-AI\main\src\main.rs C:\Users\quent\Quentin\CODE\Rust\Projects\2048-Rust-AI\main\src\renderer.rs
