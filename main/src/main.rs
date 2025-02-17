@@ -5,48 +5,53 @@ fn main() {
     test_movements();
 }
 
-fn draw_game(game_state : Vec<Vec<i32>>) {
+fn draw_game(_game_state : Vec<Vec<i32>>) {
     
     //Draws the current state of the game (a grid of GRID_SIZE squared of blocks of size BLOCK_SIDE)
     //Should use ANSI escape codes to redraw over the last frame
     //Uses background color to distinguish between empty and existing blocks
 }
 
-fn move_right(current_state : Vec<Vec<i32>>) -> Vec<Vec<i32>> {
+fn move_right(current_state : Vec<i32>) -> Vec<i32> {
     // Returns the game state after having moved to the right
-    // current_state is a square matrix (list of list) of GRID_SIZE dimension
+    // current_state is a list of GRID_SIZE² length
     let mut new_state = current_state.clone();
     for i in 0..GRID_SIZE {         // Loop over every line
-        let mut pointer = GRID_SIZE-1;         // A pointer for the current right-most free block
-        let mut noted_value = -1;    // A variable noting the value of the first block encountered to know if the next block can be fused with it
+        println!("Line number : {:?}", i);
+        let mut pointer = GRID_SIZE-1;  // A pointer for the current right-most free block
+        let mut noted_value = -1;   // A variable noting the value of the first block encountered to know if the next block can be fused with it
         let mut noted_index:usize= 0;
-        let line = &mut new_state[i as usize];
+        let line = &mut new_state[GRID_SIZE as usize*(i-1) as usize..i as usize*GRID_SIZE as usize+1]; // Get the current line
+       
         for j in 0..GRID_SIZE { // Loop over every space in the line
-            let index = (GRID_SIZE - j - 1) as usize;
-            if noted_value == -1 && line[index] != 0 { // Change block_value if it's -1 and the value of the current block is not 0
-                noted_value += 1+line[index];
-                noted_index = index
+            let index = (GRID_SIZE - j - 1) as usize; // Adjusting index because of the direction
+            if noted_value == -1 && line[index] != 0 { // Change noted_value if it's -1 and the value of the current block is not 0
+                noted_value = line[index];
+                noted_index = index;
             }
-            else { // Move the noted block at pointer when encountering another block
+            else { // If the noted_value has not just been set
                 if line[index] != 0 { // If encountering a new block
                     if line[index] == noted_value { // Fuse them if they have the same value
+                        println!("Fused blocks of value {:?} at index {:?} and {:?} to pointer {:?}", noted_value, noted_index, index, pointer);
                         line[pointer as usize] = noted_value+1;
                         pointer -= 1;
                         noted_value = -1;
                         line[noted_index] = 0;
-                        line[index] = 0
+                        line[index] = 0;
                     }
                     else { // Otherwise, move the noted block at pointer and note the new block
                         line[pointer as usize] = noted_value;
                         pointer -= 1;
                         line[noted_index] = 0;
-                        noted_value = line[index]
+                        noted_value = line[index];
+                        println!("Moved block (other)");
                     }
                 }
                 else if j == GRID_SIZE-1 { // If at the end of the line, move the noted block at pointer
                     line[pointer as usize] = noted_value;
                     line[noted_index] = 0;
-                    break
+                    println!("Moved block (end)");
+                    break;
                 }
             }
         }
