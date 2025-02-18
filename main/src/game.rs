@@ -46,3 +46,7 @@ fn move_right(current_state : [i32]) -> [i32] {
     }
     return new_state;
 }
+
+fn patate() {
+    println!{"patate"}
+}
