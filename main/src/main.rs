@@ -18,9 +18,9 @@ fn move_right(current_state : Vec<i32>) -> Vec<i32> {
     let mut new_state = current_state.clone();
     for i in 0..GRID_SIZE {         // Loop over every line
         println!("Line number : {:?}", i);
-        let mut pointer = GRID_SIZE-1;  // A pointer for the current right-most free block
+        let mut pointer : i32 = GRID_SIZE as i32-1;  // A pointer for the current right-most free block
         let mut noted_value = -1;   // A variable noting the value of the first block encountered to know if the next block can be fused with it
-        let mut noted_index:usize= 0;
+        let mut noted_index:usize = 0;
         let line = &mut new_state[GRID_SIZE*(i-1) as usize..i as usize*GRID_SIZE+1]; // Get the current line
        
         for j in 0..GRID_SIZE { // Loop over every space in the line
@@ -74,6 +74,5 @@ fn test_display(game_state:&Vec<i32>) { // A simple function to display game sta
         let line_start = (i * GRID_SIZE) as usize;
         let line_end = line_start + GRID_SIZE as usize;
         println!("{:?}", &game_state[line_start..line_end]);
-   
     }
 }
