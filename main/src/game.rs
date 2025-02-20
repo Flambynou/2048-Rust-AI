@@ -47,6 +47,10 @@ fn move_right(current_state : [i32]) -> [i32] {
     return new_state;
 }
 
-fn patate() {
-    println!{"patate"}
+fn merge(row:[u8;GRID_SIZE]) {
+    // a more optimized version to move a single row to the left
+    let target:u8 = 0
+    for i in 1..GRID_SIZE {
+        
+    }
 }
