@@ -73,12 +73,9 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> [u8;GRID_SIZE] {
     return *row;
 }
 
-fn move_left(game_state:[u8;GRID_SIZE*GRID_SIZE]) {
-    for i in 0..GRID_SIZE {
-        let row:[u8;GRID_SIZE] = game_state[i*GRID_SIZE..i*GRID_SIZE+GRID_SIZE];
-        let new_row = move_left_single(&mut row);
-        for j in 0..GRID_SIZE {
-            game_state[i*GRID_SIZE+j] = new_row[j];
-        }
+fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) {
+    for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
+        let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
+        move_left_single(row_array);
     }
 }
