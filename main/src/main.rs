@@ -10,7 +10,7 @@ mod game;
 const GRID_SIZE: usize = 4;
 
 fn main() {
-    let mut rand = Random::from_seed(Seed::unsafe_new(502));
+    let mut rand = Random::from_seed(Seed::unsafe_new(512));
     //test_movements();
     let mut game_state: [u8; 16] = [0; 16];
     add_block(&mut game_state, &rand);

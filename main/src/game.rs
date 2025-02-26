@@ -9,7 +9,6 @@ pub enum Direction {
 }
 
 
-
 fn move_left_single(row:&mut [u8;GRID_SIZE]) -> [u8;GRID_SIZE] {
     let mut target:u8 = 0;
     for i in 1..GRID_SIZE {
@@ -29,7 +28,9 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> [u8;GRID_SIZE] {
         else {
             target += 1;
             row[target as usize] = row[i];
-            row[i] = 0;
+            if target as usize != i {
+                row[i] = 0; 
+            }
         }
     }
     return *row;
