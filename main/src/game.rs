@@ -1,4 +1,11 @@
+enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
 
+enum
 
 
 fn move_left_single(row:&mut [u8;GRID_SIZE]) -> [u8;GRID_SIZE] {
@@ -66,4 +73,33 @@ fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) {
             state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
         }
     }
+}
+
+fn make_move(&mut game_state, direction:Direction) {
+    // Copy the game state to compare after the movement
+    let mut old_game_state = game_state.clone();
+    match direction {
+        Direction::Left => move_left(&mut game_state),
+        Direction::Right => move_right(&mut game_state),
+        Direction::Up => move_up(&mut game_state),
+        Direction::Down => move_down(&mut game_state),
+    }
+    if old_game_state == game_state { // The move is not valid
+        return true;
+    }
+    else {
+        // Add random blocks
+    }
+    // Check if the game is lost
+    if !game_state.contains(0) {
+        test_game_state = game_state.clone();
+        move_left(&mut test_game_state);
+        move_right(&mut test_game_state);
+        move_up(&mut test_game_state);
+        move_down(&mut test_game_state);
+        if test_game_state == game_state {
+            return false;
+        }
+    }
+
 }
