@@ -46,36 +46,3 @@ fn test_movements() { // A function to test the movements by initializing a test
     let moved_right_state = 2;
 
 }
-
-fn move_left_single(row:&mut [u8;GRID_SIZE]) -> [u8;GRID_SIZE] {
-    // a more optimized version to move a single row to the left
-    let mut target:u8 = 0;
-    for i in 1..GRID_SIZE {
-        if row[i] == 0 {
-            continue;
-        }
-        if row[target as usize] == 0 {
-            row[target as usize] = row[i];
-            row[i] = 0;
-            continue;
-        }
-        if row[target as usize] == row[i] {
-            row[target as usize] += 1;
-            row[i] = 0;
-            target += 1;
-        }
-        else {
-            target += 1;
-            row[target as usize] = row[i];
-            row[i] = 0;
-        }
-    }
-    return *row;
-}
-
-fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) {
-    for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
-        let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
-        move_left_single(row_array);
-    }
-}
