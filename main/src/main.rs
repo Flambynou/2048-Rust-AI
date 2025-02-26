@@ -1,41 +1,25 @@
+use std::{thread, time::Duration};
+
+use game::add_block;
+use seeded_random::{Random, Seed};
+
 mod renderer;
+mod game;
 
 
 const GRID_SIZE: usize = 4;
-const BLOCK_SIDE: usize = 5;
 
 fn main() {
-    println!("Hello, world!");
+    let mut rand = Random::from_seed(Seed::unsafe_new(502));
     //test_movements();
-    let mut test_state: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-    let now = std::time::Instant::now();
-    let mut counter = 0;
+    let mut game_state: [u8; 16] = [0; 16];
+    add_block(&mut game_state, &rand);
+    renderer::render(game_state);
     loop {
-        renderer::render(test_state, GRID_SIZE);
-        // Barrel shift test_state
-        let mut new_test_state = test_state.clone();
-        for i in 0..GRID_SIZE {
-            for j in 0..GRID_SIZE {
-                if i*GRID_SIZE + j + 1 == GRID_SIZE*GRID_SIZE {
-                    new_test_state[i*GRID_SIZE + j] = test_state[0];
-                }
-                else {
-                    new_test_state[i*GRID_SIZE + j] = test_state[i*GRID_SIZE + j + 1];
-                }
-            }
-        }
-        test_state = new_test_state;
-
-        // Calculate the fps and print it
-        let elapsed = now.elapsed();
-        let fps = counter as f64 / elapsed.as_secs_f64();
-        println!("FPS: {}", fps);
-
-        counter += 1;
-        // Sleep for some time according to target frame rate
-        std::thread::sleep(std::time::Duration::from_millis(1000 / 3));
+        thread::sleep(Duration::from_millis(1000));
+        game::make_move(&mut game_state, game::Direction::Left, &rand);
+        renderer::render(game_state);
     }
-    
 }
 
 

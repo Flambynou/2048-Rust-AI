@@ -1,5 +1,6 @@
 use core::panic;
 
+use crate::GRID_SIZE;
 
 // Colored blocks
 const COLORS: [&str; 7] = [
@@ -17,25 +18,25 @@ const BORDER_PIXEL: &str = "\x1b[30m▒▒";
 const BLOCK_SIZE: usize = 1; // Real size in pixel : 3 + 2*BLOCK_SIZE
 
 
-pub fn render(game_state: [u8; 16], grid_size: usize) {
+pub fn render(game_state: [u8; 16]) {
     let mut data: Vec<String> = vec![];
 
     // Top border
-    data.push(format!("{}{}\x1b[0m", COLORS[6], PIXEL.repeat((3 + 2*BLOCK_SIZE)*grid_size)));
+    data.push(format!("{}{}\x1b[0m", COLORS[6], PIXEL.repeat((3 + 2*BLOCK_SIZE)*GRID_SIZE)));
 
-    for i in 0..grid_size {
-        let mut line: Vec<String> = create_block(game_state[i*grid_size], BLOCK_SIZE);
-        for j in 1..grid_size {
-            line = hlink(line, create_block(game_state[i*grid_size + j], BLOCK_SIZE));
+    for i in 0..GRID_SIZE {
+        let mut line: Vec<String> = create_block(game_state[i*GRID_SIZE], BLOCK_SIZE);
+        for j in 1..GRID_SIZE {
+            line = hlink(line, create_block(game_state[i*GRID_SIZE + j], BLOCK_SIZE));
         }
         data = vlink(data, line);
     }
 
     // Bottom border
-    data.push(format!("{}{}\x1b[0m", COLORS[6], PIXEL.repeat((3 + 2*BLOCK_SIZE)*grid_size)));
+    data.push(format!("{}{}\x1b[0m", COLORS[6], PIXEL.repeat((3 + 2*BLOCK_SIZE)*GRID_SIZE)));
 
     // Side borders
-    let border: Vec<String> = vec![format!("{}{}\x1b[0m", COLORS[6], PIXEL); (3 + 2*BLOCK_SIZE)*grid_size + 2];
+    let border: Vec<String> = vec![format!("{}{}\x1b[0m", COLORS[6], PIXEL); (3 + 2*BLOCK_SIZE)*GRID_SIZE + 2];
     data = hlink(border.clone(), data);
     data = hlink(data, border);
 
