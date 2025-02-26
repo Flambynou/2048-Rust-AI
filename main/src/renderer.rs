@@ -18,7 +18,7 @@ const BORDER_PIXEL: &str = "\x1b[30m▒▒";
 const BLOCK_SIZE: usize = 1; // Real size in pixel : 3 + 2*BLOCK_SIZE
 
 
-pub fn render(game_state: [u8; 16]) {
+pub fn render(game_state: [u8; GRID_SIZE*GRID_SIZE]) {
     let mut data: Vec<String> = vec![];
 
     // Top border
@@ -54,7 +54,7 @@ fn create_block(value: u8, size: usize) -> Vec<String> {
     }
     let mut block = vec![];
     let color = COLORS[(value+1) as usize % 6];
-    let number = format!("{}", 1 << value);
+    let number = format!("{}",value);
     let length = number.len();
 
     // Top border

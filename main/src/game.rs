@@ -7,6 +7,16 @@ pub enum Direction {
     Up,
     Down,
 }
+impl Clone for Direction{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Left => Self::Left,
+            Self::Right => Self::Right,
+            Self::Up => Self::Up,
+            Self::Down => Self::Down,
+        }
+    }
+}
 
 
 fn move_left_single(row:&mut [u8;GRID_SIZE]) -> bool {
@@ -99,7 +109,7 @@ pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction
         Direction::Down => move_down(game_state),
     };
     if !changed {
-        return false;
+        return true;
     }
     // Add random blocks
     add_block(game_state, &rand);
