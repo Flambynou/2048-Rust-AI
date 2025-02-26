@@ -26,10 +26,10 @@ fn main() {
             "d" => game::Direction::Right,
             _ => continue
         };
+        renderer::render(game_state);
         if !game::make_move(&mut game_state, direction, &rand) {
             println!("You lost !");
             break;
         }
-        renderer::render(game_state);
     }
 }
