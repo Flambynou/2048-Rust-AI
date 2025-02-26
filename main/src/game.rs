@@ -1,5 +1,5 @@
 use crate::GRID_SIZE;
-use seeded_random::{Random, Seed};
+use seeded_random::Random;
 
 pub enum Direction {
     Left,
@@ -18,7 +18,7 @@ impl Clone for Direction{
     }
 }
 
-
+#[inline]
 fn move_left_single(row:&mut [u8;GRID_SIZE]) -> bool {
     let mut target:u8 = 0;
     let mut changed:bool = false;
@@ -72,8 +72,9 @@ fn move_right(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool{
 
 fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
     let mut changed:bool = false;
+    let mut temp = [0; GRID_SIZE];
     for col in 0..GRID_SIZE {
-        let mut temp = [0; GRID_SIZE];
+        temp.fill(0);
         for row in 0..GRID_SIZE {
             temp[row] = state[row * GRID_SIZE + col];
         }
@@ -89,8 +90,9 @@ fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
 
 fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
     let mut changed:bool = false;
+    let mut temp = [0; GRID_SIZE];
     for col in 0..GRID_SIZE {
-        let mut temp = [0; GRID_SIZE];
+        temp.fill(0);
         for row in 0..GRID_SIZE {
             temp[row] = state[(GRID_SIZE - 1 - row) * GRID_SIZE + col];
         }
@@ -120,11 +122,7 @@ pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction
     // Check if the game is lost
     if !game_state.contains(&0) {
         let mut test_game_state = game_state.clone();
-        move_left(&mut test_game_state);
-        move_right(&mut test_game_state);
-        move_up(&mut test_game_state);
-        move_down(&mut test_game_state);
-        if test_game_state == *game_state {
+        if !(move_left(&mut test_game_state)||move_right(&mut test_game_state)||move_up(&mut test_game_state)||move_down(&mut test_game_state)) {
             return false;
         }
     }
