@@ -78,8 +78,10 @@ fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
             temp[row] = state[row * GRID_SIZE + col];
         }
         changed |= move_left_single(&mut temp);
-        for row in 0..GRID_SIZE {
+        if changed {
+            for row in 0..GRID_SIZE {
             state[row * GRID_SIZE + col] = temp[row];
+            }
         }
     }
     return changed;
@@ -93,8 +95,10 @@ fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
             temp[row] = state[(GRID_SIZE - 1 - row) * GRID_SIZE + col];
         }
         changed |= move_left_single(&mut temp);
-        for row in 0..GRID_SIZE {
-            state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
+        if changed {
+            for row in 0..GRID_SIZE {
+                state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
+            }
         }
     }
     return changed;
