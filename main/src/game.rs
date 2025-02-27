@@ -19,9 +19,10 @@ impl Clone for Direction{
 }
 
 #[inline]
-fn move_left_single(row:&mut [u8;GRID_SIZE]) -> bool {
+fn move_left_single(row:&mut [u8;GRID_SIZE]) -> (bool,i32) {
     let mut target:u8 = 0;
     let mut changed:bool = false;
+    let mut score:i32 = 0;
     for i in 1..GRID_SIZE {
         if row[i] == 0 {
             continue;
@@ -34,9 +35,10 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> bool {
         }
         if row[target as usize] == row[i] {
             row[target as usize] += 1;
+            score += 1 << row[target as usize];
             row[i] = 0;
             target += 1;
-            changed = true;
+            changed = true; 
         }
         else {
             target += 1;
@@ -47,86 +49,96 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> bool {
             }
         }
     }
-    return changed;
+    return (changed,score);
 }
 
-fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
+fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
     let mut changed:bool = false;
+    let mut score:i32 = 0;
     for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
         let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
-        changed |= move_left_single(row_array);
+        let (tempchanged,tempscore) = move_left_single(row_array);
+        changed = changed || tempchanged;
+        score += tempscore;
     }
-    return changed;
+    return (changed,score);
 }
 
-fn move_right(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool{
+fn move_right(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
     let mut changed:bool = false;
+    let mut score:i32 = 0;
     for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
         let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
         row_array.reverse();
-        changed |= move_left_single(row_array);
+        let (tempchange,tempscore) = move_left_single(row_array);
+        changed = changed || tempchange;
+        score += tempscore;
         row_array.reverse();
     }
-    return changed;
+    return (changed,score);
 }
 
-fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
+fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
     let mut changed:bool = false;
-    let mut temp = [0; GRID_SIZE];
+    let mut score:i32 = 0;
     for col in 0..GRID_SIZE {
-        temp.fill(0);
+        let mut temp = [0; GRID_SIZE];
         for row in 0..GRID_SIZE {
             temp[row] = state[row * GRID_SIZE + col];
         }
-        changed |= move_left_single(&mut temp);
-        if changed {
+        let (tempchanged,tempscore) = move_left_single(&mut temp);
+        changed = changed || tempchanged;
+        score += tempscore;
+        if tempchanged {
             for row in 0..GRID_SIZE {
             state[row * GRID_SIZE + col] = temp[row];
             }
         }
     }
-    return changed;
+    return (changed,score);
 }
 
-fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> bool {
+fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
     let mut changed:bool = false;
-    let mut temp = [0; GRID_SIZE];
+    let mut score:i32 = 0;
     for col in 0..GRID_SIZE {
-        temp.fill(0);
+        let mut temp = [0; GRID_SIZE];
         for row in 0..GRID_SIZE {
             temp[row] = state[(GRID_SIZE - 1 - row) * GRID_SIZE + col];
         }
-        changed |= move_left_single(&mut temp);
-        if changed {
+        let (tempchanged,tempscore) = move_left_single(&mut temp);
+        changed = changed || tempchanged;
+        score += tempscore;
+        if tempchanged {
             for row in 0..GRID_SIZE {
                 state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
             }
         }
     }
-    return changed;
+    return (changed,score);
 }
 
-pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> bool {
+pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> (bool,i32) {
     // Copy the game state to compare after the movement
-    let changed:bool = match direction {
+    let (changed,score) = match direction {
         Direction::Left => move_left(game_state),
         Direction::Right => move_right(game_state),
         Direction::Up => move_up(game_state),
         Direction::Down => move_down(game_state),
     };
     if !changed {
-        return true;
+        return (true,-1);
     }
     // Add random blocks
     add_block(game_state, &rand);
     // Check if the game is lost
     if !game_state.contains(&0) {
         let mut test_game_state = game_state.clone();
-        if !(move_left(&mut test_game_state)||move_right(&mut test_game_state)||move_up(&mut test_game_state)||move_down(&mut test_game_state)) {
-            return false;
+        if !(move_left(&mut test_game_state).0||move_right(&mut test_game_state).0||move_up(&mut test_game_state).0||move_down(&mut test_game_state).0) {
+            return (false,score);
         }
     }
-    return true;
+    return (true,score);
 }
 
 
