@@ -11,8 +11,10 @@ pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
     pub game_state: [u8; GRID_SIZE*GRID_SIZE],
     pub score: usize,
-    pub move_number: usize,
-    pub best: u8,
+    move_number: usize,
+    pub total_moves: usize,
+    best: u8,
+    pub bestbest: u8,
     seed: u64
 }
 
@@ -23,7 +25,9 @@ impl Agent {
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
+            total_moves: 0,
             best: 0,
+            bestbest: 0,
             seed: seed
         }
     }
@@ -33,18 +37,27 @@ impl Agent {
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
+            total_moves: 0,
             best: 0,
+            bestbest: 0,
             seed: seed
         }
     }
     pub fn run(self: &mut Self) {
         for _ in 0..RUNS_PER_AGENT {
             self.run_once(&Random::from_seed(Seed::unsafe_new(self.seed)));
+            self.total_moves += self.move_number;
+            if self.best > self.bestbest {
+                self.bestbest = self.best;
+            }
             self.seed += 1;
         }
     }
 
     pub fn run_once(self: &mut Self, rand: &Random) {
+        self.game_state = [0; GRID_SIZE*GRID_SIZE];
+        self.move_number = 0;
+        self.best = 0;
         loop {
             // Add a block to the game state
             game::add_block(&mut self.game_state, rand);

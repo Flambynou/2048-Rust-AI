@@ -23,7 +23,7 @@ fn main() {
             }
         }
         // Print the best agent's score
-        println!("Generation {}: {}     Best block : {}     Moves : {}", gen_count, population[best_agent].score, 1 << population[best_agent].best,population[best_agent].move_number);
+        println!("Generation {}: {}     Best block : {}     Moves : {}", gen_count, population[best_agent].score, 1 << population[best_agent].bestbest,population[best_agent].total_moves);
         // Create the next generation
         population::clone_population(&mut population, best_agent, gen_count * population::RUNS_PER_AGENT as u64, 0.01, 15.0/((gen_count as f32 + 0.1).log10()) + 0.5);
         gen_count += 1;
