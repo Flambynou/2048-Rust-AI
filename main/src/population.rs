@@ -5,13 +5,15 @@ use crate::GRID_SIZE;
 use crate::game;
 
 
+pub const RUNS_PER_AGENT: usize = 10;
+
 pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
     pub game_state: [u8; GRID_SIZE*GRID_SIZE],
     pub score: usize,
     pub move_number: usize,
     pub best: u8,
-    rand: Random,
+    seed: u64
 }
 
 impl Agent {
@@ -22,7 +24,7 @@ impl Agent {
             score: 0,
             move_number: 0,
             best: 0,
-            rand: Random::from_seed(Seed::unsafe_new(seed))
+            seed: seed
         }
     }
     pub fn from(neural_network: neural_network::NeuralNetwork, seed: u64) -> Self {
@@ -32,13 +34,20 @@ impl Agent {
             score: 0,
             move_number: 0,
             best: 0,
-            rand: Random::from_seed(Seed::unsafe_new(seed))
+            seed: seed
         }
     }
     pub fn run(self: &mut Self) {
+        for _ in 0..RUNS_PER_AGENT {
+            self.run_once(&Random::from_seed(Seed::unsafe_new(self.seed)));
+            self.seed += 1;
+        }
+    }
+
+    pub fn run_once(self: &mut Self, rand: &Random) {
         loop {
             // Add a block to the game state
-            game::add_block(&mut self.game_state, &self.rand);
+            game::add_block(&mut self.game_state, rand);
             // Transform the game_state into an input for the network
             let mut input_game_state = Vec::with_capacity(GRID_SIZE*GRID_SIZE);
             for i in 0..self.game_state.len() {
@@ -62,7 +71,7 @@ impl Agent {
                 _ => panic!("You fucked up something with the ai's output")
             };
             // Then make the move
-            let (lost, move_score) = game::make_move(&mut self.game_state, direction, &self.rand);
+            let (lost, move_score) = game::make_move(&mut self.game_state, direction, rand);
             self.move_number += 1;
             // Check if the move wasn't valid
             if move_score == -1 {
@@ -70,7 +79,7 @@ impl Agent {
                     Some(&max) => self.best = max,
                     None => continue,
                 }
-                self.score = 10 * self.move_number + self.best as usize;
+                self.score += 10 * self.move_number + self.best as usize;
                 return;
             }
             // If the agent lost, break
@@ -79,7 +88,7 @@ impl Agent {
                     Some(&max) => self.best = max,
                     None => continue,
                 }
-                self.score = 10 * self.move_number + self.best as usize;
+                self.score += 10 * self.move_number + self.best as usize;
                 return;
             }
         }
@@ -112,7 +121,7 @@ pub fn clone_population(agents: &mut Vec<Agent>, best: usize, seed: u64, mutatio
     // Add the best neural network to the agents vector
     agents.push(Agent::from(best_neural_network.clone(), seed));
     // Add the rest of the agents (parallelized)
-    let new_agents: Vec<Agent> = (1..size).into_par_iter().map(|i| {
+    let new_agents: Vec<Agent> = (1..size).into_par_iter().map(|_| {
         // Clone the best neural network
         let mut neural_network = best_neural_network.clone();
         // Mutate the neural network
