@@ -17,7 +17,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 50, 80, 80, 50, 4], 1, (-4.0,4.0), (-1.0,1.0)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 50, 100, 100, 50, 4], 1, (-4.0,4.0), (-1.0,1.0)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             best: 0,
@@ -39,11 +39,16 @@ impl Agent {
             game::add_block(&mut self.game_state, &self.rand);
             // First divide the game state by 10 and convert it to a Vec<f32>
             let mut game_state = Vec::new();
+            let mut n_zeros = 0;
             for i in 0..self.game_state.len() {
                 game_state.push(self.game_state[i] as f32 - 0.5);
                 // If bigger than best, update best
                 if self.game_state[i] > self.best {
                     self.best = self.game_state[i];
+                }
+                // If the value is 0, increment n_zeros
+                if self.game_state[i] == 0 {
+                    n_zeros += 1;
                 }
             }
             // First get the 4 outputs from the neural network
@@ -71,6 +76,9 @@ impl Agent {
             }
             // Add the score to the agent's score
             self.score += score as usize;
+            self.score += n_zeros * 2;
+            self.score += self.best as usize * 30;
+            // If the agent lost, break
             if lost {
                 break;
             }
