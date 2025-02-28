@@ -54,7 +54,7 @@ fn create_block(value: u8, size: usize) -> Vec<String> {
     }
     let mut block = vec![];
     let color = COLORS[(value+1) as usize % 6];
-    let number = format!("{}",value);
+    let number = format!("{}", 1 << value);
     let length = number.len();
 
     // Top border

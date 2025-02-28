@@ -127,7 +127,7 @@ pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction
         Direction::Down => move_down(game_state),
     };
     if !changed {
-        return (true,-1);
+        return (false,-1);
     }
     // Add random blocks
     add_block(game_state, &rand);
@@ -135,10 +135,10 @@ pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction
     if !game_state.contains(&0) {
         let mut test_game_state = game_state.clone();
         if !(move_left(&mut test_game_state).0||move_right(&mut test_game_state).0||move_up(&mut test_game_state).0||move_down(&mut test_game_state).0) {
-            return (false,score);
+            return (true,score);
         }
     }
-    return (true,score);
+    return (false,score);
 }
 
 
