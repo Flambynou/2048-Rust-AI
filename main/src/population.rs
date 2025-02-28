@@ -1,6 +1,5 @@
 use rayon::prelude::*;
 use seeded_random::{Random, Seed};
-
 use crate::neural_network;
 use crate::GRID_SIZE;
 use crate::game;
@@ -10,6 +9,7 @@ pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
     pub game_state: [u8; GRID_SIZE*GRID_SIZE],
     pub score: usize,
+    pub move_number: usize,
     pub best: u8,
     rand: Random,
 }
@@ -17,9 +17,10 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 50, 100, 100, 50, 4], 1, (-4.0,4.0), (-1.0,1.0)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 16, 16, 8, 4], 1, (-4.0,4.0), (-1.0,1.0)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
+            move_number: 0,
             best: 0,
             rand: Random::from_seed(Seed::unsafe_new(seed))
         }
@@ -29,6 +30,7 @@ impl Agent {
             neural_network: neural_network,
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
+            move_number: 0,
             best: 0,
             rand: Random::from_seed(Seed::unsafe_new(seed))
         }
@@ -37,22 +39,13 @@ impl Agent {
         loop {
             // Add a block to the game state
             game::add_block(&mut self.game_state, &self.rand);
-            // First divide the game state by 10 and convert it to a Vec<f32>
-            let mut game_state = Vec::new();
-            let mut n_zeros = 0;
+            // Transform the game_state into an input for the network
+            let mut input_game_state = Vec::with_capacity(GRID_SIZE*GRID_SIZE);
             for i in 0..self.game_state.len() {
-                game_state.push(self.game_state[i] as f32 - 0.5);
-                // If bigger than best, update best
-                if self.game_state[i] > self.best {
-                    self.best = self.game_state[i];
-                }
-                // If the value is 0, increment n_zeros
-                if self.game_state[i] == 0 {
-                    n_zeros += 1;
-                }
+                input_game_state.push(self.game_state[i] as f32 - 0.5);
             }
             // First get the 4 outputs from the neural network
-            let outputs = self.neural_network.feed_forward(game_state);
+            let outputs = self.neural_network.feed_forward(input_game_state);
             // Then get the index of the highest output
             let mut max_index = 0;
             for i in 1..outputs.len() {
@@ -69,18 +62,25 @@ impl Agent {
                 _ => panic!("You fucked up something with the ai's output")
             };
             // Then make the move
-            let (lost, score) = game::make_move(&mut self.game_state, direction, &self.rand);
+            let (lost, move_score) = game::make_move(&mut self.game_state, direction, &self.rand);
+            self.move_number += 1;
             // Check if the move wasn't valid
-            if score == -1 {
-                break;
+            if move_score == -1 {
+                match self.game_state.iter().max() {
+                    Some(&max) => self.best = max,
+                    None => continue,
+                }
+                self.score = 10 * self.move_number + self.best as usize;
+                return;
             }
-            // Add the score to the agent's score
-            self.score += score as usize;
-            self.score += n_zeros * 2;
-            self.score += self.best as usize * 30;
             // If the agent lost, break
             if lost {
-                break;
+                match self.game_state.iter().max() {
+                    Some(&max) => self.best = max,
+                    None => continue,
+                }
+                self.score = 10 * self.move_number + self.best as usize;
+                return;
             }
         }
     }

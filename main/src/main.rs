@@ -1,6 +1,4 @@
-use game::add_block;
-use seeded_random::{Random, Seed};
-
+use seeded_random::Random;
 mod renderer;
 mod game;
 mod population;
@@ -14,6 +12,9 @@ fn main() {
     let mut gen_count = 1;
     let mut population = population::create_population(5000, 0);
     loop {
+        if gen_count > 100000000 {
+            break;
+        }
         // Run the population
         population::run_all(&mut population);
         // Get the best agent
@@ -26,9 +27,9 @@ fn main() {
             }
         }
         // Print the best agent's score
-        println!("Generation {}: {}     Best block : {}", gen_count, population[best_agent].score, 1 << population[best_agent].best);
+        println!("Generation {}: {}     Best block : {}     Moves : {}", gen_count, population[best_agent].score, 1 << population[best_agent].best,population[best_agent].move_number);
         // Create the next generation
-        population::clone_population(&mut population, best_agent, 0, 0.01, 0.5);
+        population::clone_population(&mut population, best_agent, 0, 0.01, 15.0/((gen_count as f32 + 0.1).log10()) + 0.5);
         gen_count += 1;
     }
 
