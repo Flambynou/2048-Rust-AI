@@ -94,34 +94,31 @@ impl Agent {
         }
         // First get the 4 outputs from the neural network
         let outputs = self.neural_network.feed_forward(input_game_state);
-        // Then get the index of the highest playable output
-        let mut max_index = 0;
-        let mut tried = 0;
-        for i in 1..outputs.len() {
-            if outputs[i] > outputs[max_index] {
-                match i {
-                0 => if game::can_up(&self.game_state) {max_index = i},
-                1 => if game::can_down(&self.game_state) {max_index = i},
-                2 => if game::can_left(&self.game_state) {max_index = i},
-                3 => if game::can_right(&self.game_state) {max_index = i},
-                _ => panic!("You fucked up something with the ai's output")
-                };
-            }
-            tried += 1;
-            if tried >= 4 {
-                max_index = 4;
+        // Then create a vec with each index corresponding to the directions ranked by the neural network
+        let mut indices: Vec<usize> = (0..outputs.len()).collect();
+        indices.sort_by(|&i, &j| outputs[j].partial_cmp(&outputs[i]).unwrap());
+        // Then loop through the indices to get the first valid move
+        for index in indices {
+            let direction = match index {
+                0 => game::Direction::Up,
+                1 => game::Direction::Down,
+                2 => game::Direction::Left,
+                3 => game::Direction::Right,
+                _ => game::Direction::None,
+            };
+            if match direction {
+                game::Direction::Up => game::can_up(&self.game_state),
+                game::Direction::Down => game::can_down(&self.game_state),
+                game::Direction::Left => game::can_left(&self.game_state),
+                game::Direction::Right => game::can_right(&self.game_state),
+                game::Direction::None => false,
+            } {
+                return direction;
+
             }
         }
-        // Then convert the index to a direction
-        let direction = match max_index {
-            0 => game::Direction::Up,
-            1 => game::Direction::Down,
-            2 => game::Direction::Left,
-            3 => game::Direction::Right,
-            4 => game::Direction::None,
-            _ => panic!("You fucked up something with the ai's output")
-        };
-        return direction;
+
+        return game::Direction::None;
     }
 }
 

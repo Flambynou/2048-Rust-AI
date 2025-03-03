@@ -113,6 +113,7 @@ pub fn try_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction,
         Direction::Up => if can_up(game_state) {move_up(game_state)} else {return 0},
         Direction::Down => if can_down(game_state) {move_down(game_state)} else {return 0},
         Direction::None => -1,
+
     };
     add_block(game_state,rand);
     return score;
@@ -124,7 +125,7 @@ pub fn execute_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direct
         Direction::Right => move_right(game_state),
         Direction::Up => move_up(game_state),
         Direction::Down => move_down(game_state),
-        Direction::None => -1,
+        Direction::None => -1
     };
     add_block(game_state,rand);
     return score;
