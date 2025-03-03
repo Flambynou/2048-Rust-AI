@@ -1,11 +1,12 @@
 use rayon::prelude::*;
 use seeded_random::{Random, Seed};
 use crate::neural_network;
+use crate::neural_network::NeuralNetwork;
 use crate::GRID_SIZE;
 use crate::game;
 
 
-pub const RUNS_PER_AGENT: usize = 10;
+pub const RUNS_PER_AGENT: usize = 1;
 
 pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
@@ -21,7 +22,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 128, 128, 64, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 64, 128, 64, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
@@ -56,37 +57,14 @@ impl Agent {
 
     pub fn run_once(self: &mut Self, rand: &Random) {
         self.game_state = [0; GRID_SIZE*GRID_SIZE];
+        // Add two block to the game state
+        game::add_block(&mut self.game_state, rand);
+        game::add_block(&mut self.game_state, rand);
         self.move_number = 0;
         self.best = 0;
         loop {
-            // Add a block to the game state
-            game::add_block(&mut self.game_state, rand);
-            // Transform the game_state into an input for the network
-            let mut input_game_state = Vec::with_capacity(GRID_SIZE*GRID_SIZE);
-            for i in 0..self.game_state.len() {
-                if self.game_state[i] == 0 {
-                    input_game_state.push(0.0);
-                    continue;
-                }
-                input_game_state.push((self.game_state[i] as f32 + 2.0) / 10.0);
-            }
-            // First get the 4 outputs from the neural network
-            let outputs = self.neural_network.feed_forward(input_game_state);
-            // Then get the index of the highest output
-            let mut max_index = 0;
-            for i in 1..outputs.len() {
-                if outputs[i] > outputs[max_index] {
-                    max_index = i;
-                }
-            }
-            // Then convert the index to a direction
-            let direction = match max_index {
-                0 => game::Direction::Up,
-                1 => game::Direction::Down,
-                2 => game::Direction::Left,
-                3 => game::Direction::Right,
-                _ => panic!("You fucked up something with the ai's output")
-            };
+            // Get the direction from the neural network
+            let direction = self.get_direction();
             // Then make the move
             let (lost, move_score) = game::make_move(&mut self.game_state, direction, rand);
             self.move_number += 1;
@@ -111,6 +89,36 @@ impl Agent {
             }
         }
     }
+
+    pub fn get_direction(self: &mut Self) -> game::Direction {
+        // Transform the game_state into an input for the network
+        let mut input_game_state = Vec::with_capacity(GRID_SIZE*GRID_SIZE);
+        for i in 0..self.game_state.len() {
+            if self.game_state[i] == 0 {
+                input_game_state.push(0.0);
+                continue;
+            }
+            input_game_state.push((self.game_state[i] as f32 + 2.0) / 10.0);
+        }
+        // First get the 4 outputs from the neural network
+        let outputs = self.neural_network.feed_forward(input_game_state);
+        // Then get the index of the highest output
+        let mut max_index = 0;
+        for i in 1..outputs.len() {
+            if outputs[i] > outputs[max_index] {
+                max_index = i;
+            }
+        }
+        // Then convert the index to a direction
+        let direction = match max_index {
+            0 => game::Direction::Up,
+            1 => game::Direction::Down,
+            2 => game::Direction::Left,
+            3 => game::Direction::Right,
+            _ => panic!("You fucked up something with the ai's output")
+        };
+        return direction;
+    }
 }
 
 
@@ -129,19 +137,25 @@ pub fn create_population(size: usize, seed: u64) -> Vec<Agent> {
     return agents;
 }
 
-pub fn clone_population(agents: &mut Vec<Agent>, best: usize, seed: u64, mutation_rate: f32, mutation_strength: f32) {
+pub fn load_population(size: usize, seed: u64, neural_network: NeuralNetwork) -> Vec<Agent> {
+    let mut agents = Vec::new();
+    for _ in 0..size {
+        agents.push(Agent::from(neural_network.clone(), seed as u64));
+    }
+    return agents;
+}
+
+pub fn clone_population(agents: &mut Vec<Agent>, best: NeuralNetwork, seed: u64, mutation_rate: f32, mutation_strength: f32) {
     // Get size
     let size = agents.len();
-    // Get best neural network (at index best)
-    let best_neural_network = agents[best].neural_network.clone();
     // Clear the agents vector
     agents.clear();
     // Add the best neural network to the agents vector
-    agents.push(Agent::from(best_neural_network.clone(), seed));
+    agents.push(Agent::from(best.clone(), seed));
     // Add the rest of the agents (parallelized)
     let new_agents: Vec<Agent> = (1..size).into_par_iter().map(|_| {
         // Clone the best neural network
-        let mut neural_network = best_neural_network.clone();
+        let mut neural_network = best.clone();
         // Mutate the neural network
         neural_network.mutate(mutation_rate, mutation_strength);
         // Create a new agent
