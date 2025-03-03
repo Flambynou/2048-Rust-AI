@@ -48,8 +48,8 @@ fn play() {
             "d" => game::Direction::Right,
             _ => continue
         };
-        let (lost, score) = game::make_move(&mut game_state, direction, &rand);
-        if lost {
+        let score = game::make_move(&mut game_state, direction, &rand);
+        if game::is_lost(&game_state) {
             renderer::render(game_state);
             println!("You lost !");
             break;
@@ -129,8 +129,8 @@ fn ai() {
     let mut total_score = 0;
     loop {
         let direction = agent.get_direction();
-        let (lost, score) = game::make_move(&mut game_state, direction, &rand);
-        if lost {
+        let score = game::make_move(&mut game_state, direction, &rand);
+        if game::is_lost(&game_state) {
             renderer::render(game_state);
             println!("You lost !");
             break;

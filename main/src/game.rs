@@ -19,9 +19,8 @@ impl Clone for Direction{
 }
 
 #[inline]
-fn move_left_single(row:&mut [u8;GRID_SIZE]) -> (bool,i32) {
+fn move_left_single(row:&mut [u8;GRID_SIZE]) -> i32 {
     let mut target:u8 = 0;
-    let mut changed:bool = false;
     let mut score:i32 = 0;
     for i in 1..GRID_SIZE {
         if row[i] == 0 {
@@ -30,7 +29,6 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> (bool,i32) {
         if row[target as usize] == 0 {
             row[target as usize] = row[i];
             row[i] = 0;
-            changed = true;
             continue;
         }
         if row[target as usize] == row[i] {
@@ -38,108 +36,84 @@ fn move_left_single(row:&mut [u8;GRID_SIZE]) -> (bool,i32) {
             score += 1 << row[target as usize];
             row[i] = 0;
             target += 1;
-            changed = true; 
         }
         else {
             target += 1;
             if target as usize != i {
                 row[target as usize] = row[i];
                 row[i] = 0;
-                changed = true;
             }
         }
     }
-    return (changed,score);
+    return score;
 }
 
-fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
-    let mut changed:bool = false;
+
+fn move_left(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
     let mut score:i32 = 0;
     for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
         let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
-        let (tempchanged,tempscore) = move_left_single(row_array);
-        changed = changed || tempchanged;
-        score += tempscore;
+        score += move_left_single(row_array);
     }
-    return (changed,score);
+    return score;
 }
 
-fn move_right(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
-    let mut changed:bool = false;
+
+fn move_right(game_state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
     let mut score:i32 = 0;
     for row_chunk in game_state.chunks_exact_mut(GRID_SIZE) {
         let row_array: &mut [u8; GRID_SIZE] = row_chunk.try_into().unwrap();
         row_array.reverse();
-        let (tempchange,tempscore) = move_left_single(row_array);
-        changed = changed || tempchange;
-        score += tempscore;
+        score += move_left_single(row_array);
         row_array.reverse();
     }
-    return (changed,score);
+    return score;
 }
 
-fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
-    let mut changed:bool = false;
+
+fn move_up(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
     let mut score:i32 = 0;
     for col in 0..GRID_SIZE {
         let mut temp = [0; GRID_SIZE];
         for row in 0..GRID_SIZE {
             temp[row] = state[row * GRID_SIZE + col];
         }
-        let (tempchanged,tempscore) = move_left_single(&mut temp);
-        changed = changed || tempchanged;
-        score += tempscore;
-        if tempchanged {
-            for row in 0..GRID_SIZE {
-            state[row * GRID_SIZE + col] = temp[row];
-            }
+        score += move_left_single(&mut temp);
+        for row in 0..GRID_SIZE {
+        state[row * GRID_SIZE + col] = temp[row];
         }
     }
-    return (changed,score);
+    return score;
 }
 
-fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> (bool,i32) {
-    let mut changed:bool = false;
+
+fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
     let mut score:i32 = 0;
     for col in 0..GRID_SIZE {
         let mut temp = [0; GRID_SIZE];
         for row in 0..GRID_SIZE {
             temp[row] = state[(GRID_SIZE - 1 - row) * GRID_SIZE + col];
         }
-        let (tempchanged,tempscore) = move_left_single(&mut temp);
-        changed = changed || tempchanged;
-        score += tempscore;
-        if tempchanged {
-            for row in 0..GRID_SIZE {
-                state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
-            }
+        score += move_left_single(&mut temp);
+        for row in 0..GRID_SIZE {
+            state[(GRID_SIZE - 1 - row) * GRID_SIZE + col] = temp[row];
         }
     }
-    return (changed,score);
+    return score;
 }
 
-pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> (bool,i32) {
-    // Copy the game state to compare after the movement
-    let (changed,score) = match direction {
-        Direction::Left => move_left(game_state),
-        Direction::Right => move_right(game_state),
-        Direction::Up => move_up(game_state),
-        Direction::Down => move_down(game_state),
+
+pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> i32 {
+    let score = match direction {
+        Direction::Left => if can_left(game_state) {move_left(game_state)} else { return -1},
+        Direction::Right => if can_right(game_state) {move_right(game_state)} else { return -1},
+        Direction::Up => if can_up(game_state) {move_up(game_state)} else {return -1},
+        Direction::Down => if can_down(game_state) {move_down(game_state)} else {return -1},
     };
-    if !changed {
-        return (false,-1);
-    }
-    // Add random blocks
-    add_block(game_state, &rand);
-    // Check if the game is lost
-    if !game_state.contains(&0) {
-        let mut test_game_state = game_state.clone();
-        if !(move_left(&mut test_game_state).0||move_right(&mut test_game_state).0||move_up(&mut test_game_state).0||move_down(&mut test_game_state).0) {
-            return (true,score);
-        }
-    }
-    return (false,score);
+    add_block(game_state,rand);
+    return score;
 }
+
 
 
 pub fn add_block(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {
@@ -158,4 +132,80 @@ pub fn add_block(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {
             index -= 1;
         }
     }
+}
+
+
+pub fn is_lost(game_state: &[u8; GRID_SIZE*GRID_SIZE]) -> bool {
+    return !(can_left(game_state) || can_right(game_state) || can_up(game_state) || can_down(game_state))
+}
+
+
+fn can_left_single(row: &[u8; GRID_SIZE]) -> bool {
+    for i in 1..GRID_SIZE {
+        // If the right cell is empty, we cannot say anything so skip this window
+        if row[i] == 0 {
+            continue;
+        }
+        // If the two cells are the same, fusion is possible
+        if row[i] == row[i-1] {
+            return true;
+        }
+        // If the left cell is empty, moving is possible
+        if row[i-1] == 0 {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+pub fn can_left(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> bool {
+    for row_chunk in game_state.chunks_exact(GRID_SIZE) {
+        let row_array: &[u8; GRID_SIZE] = row_chunk.try_into().unwrap();
+        if can_left_single(row_array) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+pub fn can_right(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> bool {
+    for row_chunk in game_state.chunks_exact(GRID_SIZE) {
+        let row_array: &[u8; GRID_SIZE] = row_chunk.try_into().unwrap();
+        let mut temp = row_array.clone();
+        temp.reverse();
+        if can_left_single(&temp) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+pub fn can_up(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> bool {
+    for col in 0..GRID_SIZE {
+        let mut temp = [0; GRID_SIZE];
+        for row in 0..GRID_SIZE {
+            temp[row] = game_state[row * GRID_SIZE + col];
+        }
+        if can_left_single(&temp) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+pub fn can_down(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> bool {
+    for col in 0..GRID_SIZE {
+        let mut temp = [0; GRID_SIZE];
+        for row in 0..GRID_SIZE {
+            temp[row] = game_state[(GRID_SIZE - 1 - row) * GRID_SIZE + col];
+        }
+        if can_left_single(&temp) {
+            return true;
+        }
+    }
+    return false;
 }

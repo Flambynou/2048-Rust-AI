@@ -66,7 +66,7 @@ impl Agent {
             // Get the direction from the neural network
             let direction = self.get_direction();
             // Then make the move
-            let (lost, move_score) = game::make_move(&mut self.game_state, direction, rand);
+            let move_score = game::make_move(&mut self.game_state, direction, rand);
             self.move_number += 1;
             // Check if the move wasn't valid
             if move_score == -1 {
@@ -79,7 +79,7 @@ impl Agent {
             }
             self.score += move_score as usize + 1;
             // If the agent lost, break
-            if lost {
+            if game::is_lost(&self.game_state) {
                 match self.game_state.iter().max() {
                     Some(&max) => self.best = max,
                     None => continue,
@@ -102,11 +102,17 @@ impl Agent {
         }
         // First get the 4 outputs from the neural network
         let outputs = self.neural_network.feed_forward(input_game_state);
-        // Then get the index of the highest output
+        // Then get the index of the highest playable output
         let mut max_index = 0;
         for i in 1..outputs.len() {
             if outputs[i] > outputs[max_index] {
-                max_index = i;
+                match i {
+                0 => if game::can_up(&self.game_state) {max_index = i},
+                1 => if game::can_down(&self.game_state) {max_index = i},
+                2 => if game::can_left(&self.game_state) {max_index = i},
+                3 => if game::can_right(&self.game_state) {max_index = i},
+                _ => panic!("You fucked up something with the ai's output")
+                };
             }
         }
         // Then convert the index to a direction
