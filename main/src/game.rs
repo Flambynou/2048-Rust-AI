@@ -1,11 +1,13 @@
 use crate::GRID_SIZE;
 use seeded_random::Random;
 
+#[derive(PartialEq)]
 pub enum Direction {
     Left,
     Right,
     Up,
     Down,
+    None,
 }
 impl Clone for Direction{
     fn clone(&self) -> Self {
@@ -14,6 +16,7 @@ impl Clone for Direction{
             Self::Right => Self::Right,
             Self::Up => Self::Up,
             Self::Down => Self::Down,
+            Self::None => Self::None
         }
     }
 }
@@ -103,17 +106,31 @@ fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
 }
 
 
-pub fn make_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> i32 {
+pub fn try_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> i32 {
     let score = match direction {
         Direction::Left => if can_left(game_state) {move_left(game_state)} else { return -1},
         Direction::Right => if can_right(game_state) {move_right(game_state)} else { return -1},
         Direction::Up => if can_up(game_state) {move_up(game_state)} else {return -1},
         Direction::Down => if can_down(game_state) {move_down(game_state)} else {return -1},
+        Direction::None => -1,
+
     };
     add_block(game_state,rand);
     return score;
 }
 
+pub fn execute_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> i32 {
+    let score = match direction {
+        Direction::Left => move_left(game_state),
+        Direction::Right => move_right(game_state),
+        Direction::Up => move_up(game_state),
+        Direction::Down => move_down(game_state),
+        Direction::None => -1,
+
+    };
+    add_block(game_state,rand);
+    return score;
+}
 
 
 pub fn add_block(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {

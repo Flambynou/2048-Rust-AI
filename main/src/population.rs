@@ -65,28 +65,20 @@ impl Agent {
         loop {
             // Get the direction from the neural network
             let direction = self.get_direction();
-            // Then make the move
-            let move_score = game::make_move(&mut self.game_state, direction, rand);
+            // If the position is unplayable, break
+            if direction == game::Direction::None {
+                match self.game_state.iter().max() {
+                    Some(&max) => self.best = max,
+                    None => continue,
+                }
+                self.score += self.best as usize * 10;
+                break;
+            }
+            // If not, execute the move chosen by the ai
+            let move_score = game::execute_move(&mut self.game_state, direction, rand);
+            // Update the score
             self.move_number += 1;
-            // Check if the move wasn't valid
-            if move_score == -1 {
-                match self.game_state.iter().max() {
-                    Some(&max) => self.best = max,
-                    None => continue,
-                }
-                self.score += self.best as usize * 10;
-                return;
-            }
             self.score += move_score as usize + 1;
-            // If the agent lost, break
-            if game::is_lost(&self.game_state) {
-                match self.game_state.iter().max() {
-                    Some(&max) => self.best = max,
-                    None => continue,
-                }
-                self.score += self.best as usize * 10;
-                return;
-            }
         }
     }
 
@@ -104,6 +96,7 @@ impl Agent {
         let outputs = self.neural_network.feed_forward(input_game_state);
         // Then get the index of the highest playable output
         let mut max_index = 0;
+        let mut tried = 0;
         for i in 1..outputs.len() {
             if outputs[i] > outputs[max_index] {
                 match i {
@@ -114,6 +107,10 @@ impl Agent {
                 _ => panic!("You fucked up something with the ai's output")
                 };
             }
+            tried += 1;
+            if tried >= 4 {
+                max_index = 4;
+            }
         }
         // Then convert the index to a direction
         let direction = match max_index {
@@ -121,6 +118,7 @@ impl Agent {
             1 => game::Direction::Down,
             2 => game::Direction::Left,
             3 => game::Direction::Right,
+            4 => game::Direction::None,
             _ => panic!("You fucked up something with the ai's output")
         };
         return direction;
