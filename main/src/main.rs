@@ -9,7 +9,7 @@ const GRID_SIZE: usize = 4;
 fn main() {
     // Create population
     let mut gen_count = 1;
-    let mut population = population::create_population(10000, 0);
+    let mut population = population::create_population(1000, 0);
     loop {
         // Run the population
         population::run_all(&mut population);
@@ -25,7 +25,7 @@ fn main() {
         // Print the best agent's score
         println!("Generation {}: {}     Best block : {}     Moves : {}", gen_count, population[best_agent].score, 1 << population[best_agent].bestbest,population[best_agent].total_moves);
         // Create the next generation
-        population::clone_population(&mut population, best_agent, gen_count * population::RUNS_PER_AGENT as u64, 0.01, 15.0/((gen_count as f32 + 0.1).log10()) + 0.5);
+        population::clone_population(&mut population, best_agent, gen_count * population::RUNS_PER_AGENT as u64, 0.15 + (gen_count as f32 * 0.0001), 0.3 * (0.97f32).powi(gen_count as i32 / 25));
         gen_count += 1;
     }
 

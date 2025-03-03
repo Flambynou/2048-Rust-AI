@@ -21,7 +21,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 16, 16, 8, 4], 1, (-4.0,4.0), (-1.0,1.0)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 128, 128, 64, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
@@ -64,7 +64,11 @@ impl Agent {
             // Transform the game_state into an input for the network
             let mut input_game_state = Vec::with_capacity(GRID_SIZE*GRID_SIZE);
             for i in 0..self.game_state.len() {
-                input_game_state.push(self.game_state[i] as f32 - 0.5);
+                if self.game_state[i] == 0 {
+                    input_game_state.push(0.0);
+                    continue;
+                }
+                input_game_state.push((self.game_state[i] as f32 + 2.0) / 10.0);
             }
             // First get the 4 outputs from the neural network
             let outputs = self.neural_network.feed_forward(input_game_state);
@@ -92,16 +96,17 @@ impl Agent {
                     Some(&max) => self.best = max,
                     None => continue,
                 }
-                self.score += 10 * self.move_number + self.best as usize;
+                self.score += self.best as usize * 10;
                 return;
             }
+            self.score += move_score as usize + 1;
             // If the agent lost, break
             if lost {
                 match self.game_state.iter().max() {
                     Some(&max) => self.best = max,
                     None => continue,
                 }
-                self.score += 10 * self.move_number + self.best as usize;
+                self.score += self.best as usize * 10;
                 return;
             }
         }
