@@ -57,7 +57,7 @@ fn play() {
             break;
         }
         renderer::render(game_state);
-        total_score += score.max(0);
+        total_score += score;
         println!("Score: {}", total_score);
     }
 }
@@ -133,7 +133,7 @@ fn ai() {
     let mut total_score = 0;
     loop {
         // Wait for a bit
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Get the direction from the neural network
         let direction = agent.get_direction();

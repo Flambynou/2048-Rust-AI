@@ -108,12 +108,11 @@ fn move_down(state: &mut [u8; GRID_SIZE * GRID_SIZE]) -> i32 {
 
 pub fn try_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direction, rand: &Random) -> i32 {
     let score = match direction {
-        Direction::Left => if can_left(game_state) {move_left(game_state)} else { return -1},
-        Direction::Right => if can_right(game_state) {move_right(game_state)} else { return -1},
-        Direction::Up => if can_up(game_state) {move_up(game_state)} else {return -1},
-        Direction::Down => if can_down(game_state) {move_down(game_state)} else {return -1},
+        Direction::Left => if can_left(game_state) {move_left(game_state)} else { return 0},
+        Direction::Right => if can_right(game_state) {move_right(game_state)} else { return 0},
+        Direction::Up => if can_up(game_state) {move_up(game_state)} else {return 0},
+        Direction::Down => if can_down(game_state) {move_down(game_state)} else {return 0},
         Direction::None => -1,
-
     };
     add_block(game_state,rand);
     return score;
@@ -126,7 +125,6 @@ pub fn execute_move(game_state: &mut [u8; GRID_SIZE*GRID_SIZE], direction:Direct
         Direction::Up => move_up(game_state),
         Direction::Down => move_down(game_state),
         Direction::None => -1,
-
     };
     add_block(game_state,rand);
     return score;
