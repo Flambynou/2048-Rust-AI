@@ -6,7 +6,7 @@ use crate::GRID_SIZE;
 use crate::game;
 
 
-pub const RUNS_PER_AGENT: usize = 20;
+pub const RUNS_PER_AGENT: usize = 30;
 
 pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
@@ -22,7 +22,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 64, 128, 32, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 128, 256, 64, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
@@ -69,7 +69,7 @@ impl Agent {
             if direction == game::Direction::None {
                 match self.game_state.iter().max() {
                     Some(&max) => self.best = max,
-                    None => continue,
+                    _ => continue,
                 }
                 self.score += self.best as usize * 10;
                 break;

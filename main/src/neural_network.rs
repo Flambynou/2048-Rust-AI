@@ -41,7 +41,6 @@ impl NeuralNetwork {
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
         let contents: Vec<&str> = contents.split("\n").collect();
-
         let generation: usize = contents[0].parse().unwrap();
         let layers_len = contents[1].parse().unwrap();
         let mut layers = Vec::new();

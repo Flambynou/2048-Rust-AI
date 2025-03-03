@@ -8,9 +8,9 @@ use std::path::Path;
 
 const GRID_SIZE: usize = 4;
 
-const POPULATION_SIZE: usize = 3000;
+const POPULATION_SIZE: usize = 1000;
 
-const SEED: u64 = 512;
+const SEED: u64 = 0;
 
 
 fn main() {
@@ -21,8 +21,8 @@ fn main() {
     println!("3. AI");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
-    line.pop();
-    match line.as_str() {
+    let line = line.trim();
+    match line {
         "1" => play(),
         "2" => train(),
         "3" => ai(),
@@ -41,9 +41,9 @@ fn play() {
     loop {
         let mut line = String::new();
         std::io::stdin().read_line(&mut line).unwrap();
-        line.pop();
+        let line = line.trim();
         if line == "" { continue }
-        let direction: game::Direction = match line.as_str() {
+        let direction: game::Direction = match line {
             "z" => game::Direction::Up,
             "s" => game::Direction::Down,
             "q" => game::Direction::Left,
@@ -68,7 +68,7 @@ fn train() {
     println!("Enter a network name :");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
-    line.pop();
+    let line = line.trim();
     // Check if networks/line exists
     let path = format!("networks/{}.ntwk", line);
 
@@ -103,9 +103,9 @@ fn train() {
         best_network.save(&path, gen_count as usize);
 
         // Print the best agent's score
-        println!("Generation {}: {}     Best block : {}     Moves : {}", gen_count, population[best_agent].score, 1 << population[best_agent].bestbest,population[best_agent].total_moves);
+        println!("Generation {}: {}     Best block : {}     Moves : {}     Delta : {}", gen_count, population[best_agent].score, 1 << population[best_agent].bestbest,population[best_agent].total_moves,population[best_agent].score - population[0].score);
         // Create the next generation
-        population::clone_population(&mut population, best_network, gen_count * population::RUNS_PER_AGENT as u64, 0.15, 0.5 * (0.97f32).powi(gen_count as i32 / 25));
+        population::clone_population(&mut population, best_network, gen_count * population::RUNS_PER_AGENT as u64, 0.05, 0.3/* * (0.97f32).powi(gen_count as i32 / 25)*/);
         gen_count += 1;
     }
 }
@@ -116,7 +116,8 @@ fn ai() {
     println!("Enter a network name :");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
-    line.pop();
+    let line = line.trim();
+
     // Check if networks/line exists
     let path = format!("networks/{}.ntwk", line);
     if !Path::new(&path).exists() {
