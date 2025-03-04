@@ -156,6 +156,35 @@ fn smoothness(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
     return smoothness;
 }
 
+fn monotonicity(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
+    // Evaluate the monotonicity of the grid, that is ensure the blocs are either in increasing or decreasing order
+    let mut mono = 0;
+    for row in game_state.chunks_exact(GRID_SIZE) {
+        let mut diff = row[0] as i32 - row[1] as i32;
+        for i in 0..GRID_SIZE-1 {
+            if (row[i] as i32 - row[i+1] as i32) * diff <= 0 {
+                mono += 1;
+            }
+            diff = row[i] as i32 - row[i+1] as i32;
+        }
+    }
+    for column in 0..GRID_SIZE {
+        let mut diff = game_state[0*GRID_SIZE+column] as i32 - game_state[1*GRID_SIZE+column] as i32;
+        for i in 0..GRID_SIZE-1 {
+            if (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32) * diff <= 0 {
+                mono += 1;
+            }
+            diff = game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32;
+        }
+    }
+    return mono;
+}
+
+
+fn geometric_mean(scores:[usize;RUNS_PER_AGENT]) -> f32 {
+    // Calculate the the geometric mean of the scores by computing the arithmetic mean of logarithms of the scores
+    return (scores.iter().map(|&x| x as f32).fold(0.0, |acc, x| acc + x.ln()) / RUNS_PER_AGENT as f32).exp();
+}
 
 pub fn run_all(agents: &mut Vec<Agent>) {
     agents.par_iter_mut().enumerate().for_each(|(_, agent)| {
