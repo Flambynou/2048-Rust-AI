@@ -165,3 +165,19 @@ pub fn clone_population(agents: &mut Vec<Agent>, best: NeuralNetwork, seed: u64,
     // Extend the agents vector with the new agents
     agents.extend(new_agents);
 }
+
+fn smoothness(game_state:[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
+    // Evaluate the smoothness of the game state, ie. the total of the absolute value of the differences between each adjacent tiles
+    let mut smoothness = 0;
+    for line in game_state.chunks_exact(GRID_SIZE) {
+        for i in 0..GRID_SIZE-1 {
+            smoothness += (line[i] as i32 - line[i+1] as i32).abs();
+        }
+    }
+    for column in 0..GRID_SIZE {
+        for i in 0..GRID_SIZE-1 {
+            smoothness += (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32).abs();
+        }
+    }
+    return smoothness;
+}
