@@ -6,7 +6,7 @@ use crate::GRID_SIZE;
 use crate::game;
 
 
-pub const RUNS_PER_AGENT: usize = 30;
+pub const RUNS_PER_AGENT: usize = 50;
 
 pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
@@ -22,7 +22,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 128, 256, 64, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 64, 32, 16, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
             score: 0,
             move_number: 0,
@@ -67,18 +67,20 @@ impl Agent {
             let direction = self.get_direction();
             // If the position is unplayable, break
             if direction == game::Direction::None {
-                match self.game_state.iter().max() {
-                    Some(&max) => self.best = max,
-                    _ => continue,
-                }
-                self.score += self.best as usize * 10;
+                self.score += self.best as usize * 100;
                 break;
             }
             // If not, execute the move chosen by the ai
             let move_score = game::execute_move(&mut self.game_state, direction, rand);
+            // Get the best block
+            match self.game_state.iter().max() {
+                Some(&max) => self.best = max,
+                _ => continue,
+            }
             // Update the score
+            self.score += get_score(&self.game_state, move_score, self.best);
+
             self.move_number += 1;
-            self.score += move_score as usize + 1;
         }
     }
 
@@ -120,6 +122,38 @@ impl Agent {
 
         return game::Direction::None;
     }
+}
+
+fn get_score(game_state: &[u8; GRID_SIZE*GRID_SIZE], move_score: i32, best: u8) -> usize {
+    // Count the number of empty cells
+    let mut empty_cells = 0;
+    for i in 0..game_state.len() {
+        if game_state[i] == 0 {
+            empty_cells += 1;
+        }
+    }
+    
+    return empty_cells
+    + move_score as usize
+    + best as usize * 5
+    + smoothness(game_state) as usize * 2
+    + 10;
+}
+
+fn smoothness(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
+    // Evaluate the smoothness of the game state, ie. the total of the absolute value of the differences between each adjacent tiles
+    let mut smoothness = 0;
+    for line in game_state.chunks_exact(GRID_SIZE) {
+        for i in 0..GRID_SIZE-1 {
+            smoothness += (line[i] as i32 - line[i+1] as i32).abs();
+        }
+    }
+    for column in 0..GRID_SIZE {
+        for i in 0..GRID_SIZE-1 {
+            smoothness += (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32).abs();
+        }
+    }
+    return smoothness;
 }
 
 
@@ -166,18 +200,3 @@ pub fn clone_population(agents: &mut Vec<Agent>, best: NeuralNetwork, seed: u64,
     agents.extend(new_agents);
 }
 
-fn smoothness(game_state:[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
-    // Evaluate the smoothness of the game state, ie. the total of the absolute value of the differences between each adjacent tiles
-    let mut smoothness = 0;
-    for line in game_state.chunks_exact(GRID_SIZE) {
-        for i in 0..GRID_SIZE-1 {
-            smoothness += (line[i] as i32 - line[i+1] as i32).abs();
-        }
-    }
-    for column in 0..GRID_SIZE {
-        for i in 0..GRID_SIZE-1 {
-            smoothness += (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32).abs();
-        }
-    }
-    return smoothness;
-}
