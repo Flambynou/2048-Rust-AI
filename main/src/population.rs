@@ -6,29 +6,23 @@ use crate::GRID_SIZE;
 use crate::game;
 
 
-pub const RUNS_PER_AGENT: usize = 50;
+pub const RUNS_PER_AGENT: usize = 10;
 
 pub struct Agent {
     pub neural_network: neural_network::NeuralNetwork,
     pub game_state: [u8; GRID_SIZE*GRID_SIZE],
-    pub score: usize,
-    move_number: usize,
-    pub total_moves: usize,
-    best: u8,
-    pub bestbest: u8,
+    fitness: [f32; RUNS_PER_AGENT],
+    pub highest_tile: u8,
     seed: u64
 }
 
 impl Agent {
     pub fn new(seed: u64) -> Self {
         return Agent {
-            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 64, 32, 16, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
+            neural_network: neural_network::NeuralNetwork::new(vec![(GRID_SIZE as u32) * (GRID_SIZE as u32), 512, 512, 512, 4], 3, 5, (-1.0,1.0), (-0.1,0.1)),
             game_state: [0; GRID_SIZE*GRID_SIZE],
-            score: 0,
-            move_number: 0,
-            total_moves: 0,
-            best: 0,
-            bestbest: 0,
+            fitness: [0.0; RUNS_PER_AGENT],
+            highest_tile: 0,
             seed: seed
         }
     }
@@ -36,52 +30,106 @@ impl Agent {
         return Agent {
             neural_network: neural_network,
             game_state: [0; GRID_SIZE*GRID_SIZE],
-            score: 0,
-            move_number: 0,
-            total_moves: 0,
-            best: 0,
-            bestbest: 0,
+            fitness: [0.0; RUNS_PER_AGENT],
+            highest_tile: 0,
             seed: seed
         }
     }
     pub fn run(self: &mut Self) {
-        for _ in 0..RUNS_PER_AGENT {
-            self.run_once(&Random::from_seed(Seed::unsafe_new(self.seed)));
-            self.total_moves += self.move_number;
-            if self.best > self.bestbest {
-                self.bestbest = self.best;
-            }
+        for i in 0..RUNS_PER_AGENT {
+            self.fitness[i] = self.run_once(&Random::from_seed(Seed::unsafe_new(self.seed)));
             self.seed += 1;
         }
     }
 
-    pub fn run_once(self: &mut Self, rand: &Random) {
+    pub fn run_once(self: &mut Self, rand: &Random) -> f32 {
         self.game_state = [0; GRID_SIZE*GRID_SIZE];
         // Add two block to the game state
         game::add_block(&mut self.game_state, rand);
         game::add_block(&mut self.game_state, rand);
-        self.move_number = 0;
-        self.best = 0;
+        let mut move_number = 0;
+        let mut max_tile = 0;
+        let mut total_score = 0;
+        let mut total_empty = 0;
+        let mut total_smoothness = 0;
+        let mut total_monotonicity = 0;
         loop {
             // Get the direction from the neural network
             let direction = self.get_direction();
             // If the position is unplayable, break
             if direction == game::Direction::None {
-                self.score += self.best as usize * 100;
-                break;
+                self.highest_tile = max_tile as u8;
+                return Agent::get_final_fitness(move_number, max_tile, total_score, total_empty, total_smoothness, total_monotonicity);
             }
             // If not, execute the move chosen by the ai
             let move_score = game::execute_move(&mut self.game_state, direction, rand);
-            // Get the best block
+            // Update the fitness variables
+            move_number += 1;
             match self.game_state.iter().max() {
-                Some(&max) => self.best = max,
+                Some(&max) => max_tile = max as i32,
                 _ => continue,
             }
-            // Update the score
-            self.score += get_score(&self.game_state, move_score, self.best);
-
-            self.move_number += 1;
+            total_score += move_score as i32;
+            total_empty += self.game_state.iter().filter(|&&x| x == 0).count() as i32;
+            total_smoothness += self.smoothness();
+            total_monotonicity += self.monotonicity();
         }
+    }
+
+    fn get_final_fitness(move_number:i32, max_tile:i32, total_score:i32, total_empty:i32, total_smoothness:i32, total_monotonicity:i32) -> f32 {
+    10.0 * max_tile as f32
+    + 1.0 * total_score as f32
+    + 0.5 * total_empty as f32 / move_number as f32
+    + -0.1 * total_smoothness as f32 / move_number as f32
+    + 0.5 * total_monotonicity as f32 / move_number as f32
+    + -0.05 * move_number as f32
+    }
+    fn smoothness(self: &mut Self) -> i32 {
+        let mut sum = 0;  
+        for i in 0..GRID_SIZE*GRID_SIZE {  
+            let row = i / GRID_SIZE;  
+            let col = i % GRID_SIZE;  
+
+            // Check right neighbor (same row, next column)  
+            if col < GRID_SIZE - 1 {  
+                let right = i + 1;  
+                sum += (self.game_state[i] as i32 - self.game_state[right] as i32).abs();  
+            }  
+
+            // Check bottom neighbor (same column, next row)  
+            if row < GRID_SIZE - 1 {  
+                let bottom = i + GRID_SIZE;  
+                sum += (self.game_state[i] as i32 - self.game_state[bottom] as i32).abs();  
+            }  
+        }  
+        return sum;
+    }
+
+    fn monotonicity(self: &mut Self) -> i32 {
+        let mut total = 0;  
+        // Check rows  
+        for row in self.game_state.chunks_exact(GRID_SIZE) {  
+            let (mut inc, mut dec) = (0, 0);  
+            for j in 0..GRID_SIZE - 1 {  
+                if row[j] <= row[j + 1] { inc += 1; }  
+                if row[j] >= row[j + 1] { dec += 1; }  
+            }  
+            total += inc.max(dec);  
+        }  
+
+        // Check columns  
+        for col in 0..GRID_SIZE {  
+            let (mut inc, mut dec) = (0, 0);  
+            for row in 0..GRID_SIZE - 1 {  
+                let idx = col + row * GRID_SIZE;  
+                let next_idx = col + (row + 1) * GRID_SIZE;  
+                if self.game_state[idx] <= self.game_state[next_idx] { inc += 1; }  
+                if self.game_state[idx] >= self.game_state[next_idx] { dec += 1; }  
+            }  
+            total += inc.max(dec);  
+        }  
+
+        total  
     }
 
     pub fn get_direction(self: &mut Self) -> game::Direction {
@@ -122,69 +170,17 @@ impl Agent {
 
         return game::Direction::None;
     }
-}
 
-fn get_score(game_state: &[u8; GRID_SIZE*GRID_SIZE], move_score: i32, best: u8) -> usize {
-    // Count the number of empty cells
-    let mut empty_cells = 0;
-    for i in 0..game_state.len() {
-        if game_state[i] == 0 {
-            empty_cells += 1;
-        }
-    }
-    
-    return empty_cells
-    + move_score as usize
-    + best as usize * 5
-    + smoothness(game_state) as usize * 2
-    + 10;
-}
-
-fn smoothness(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
-    // Evaluate the smoothness of the game state, ie. the total of the absolute value of the differences between each adjacent tiles
-    let mut smoothness = 0;
-    for line in game_state.chunks_exact(GRID_SIZE) {
-        for i in 0..GRID_SIZE-1 {
-            smoothness += (line[i] as i32 - line[i+1] as i32).abs();
-        }
-    }
-    for column in 0..GRID_SIZE {
-        for i in 0..GRID_SIZE-1 {
-            smoothness += (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32).abs();
-        }
-    }
-    return smoothness;
-}
-
-fn monotonicity(game_state: &[u8;GRID_SIZE*GRID_SIZE]) -> i32 {
-    // Evaluate the monotonicity of the grid, that is ensure the blocs are either in increasing or decreasing order
-    let mut mono = 0;
-    for row in game_state.chunks_exact(GRID_SIZE) {
-        let mut diff = row[0] as i32 - row[1] as i32;
-        for i in 0..GRID_SIZE-1 {
-            if (row[i] as i32 - row[i+1] as i32) * diff <= 0 {
-                mono += 1;
-            }
-            diff = row[i] as i32 - row[i+1] as i32;
-        }
-    }
-    for column in 0..GRID_SIZE {
-        let mut diff = game_state[0*GRID_SIZE+column] as i32 - game_state[1*GRID_SIZE+column] as i32;
-        for i in 0..GRID_SIZE-1 {
-            if (game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32) * diff <= 0 {
-                mono += 1;
-            }
-            diff = game_state[i*GRID_SIZE+column] as i32 - game_state[(i+1)*GRID_SIZE+column] as i32;
-        }
-    }
-    return mono;
-}
-
-
-fn geometric_mean(scores:[usize;RUNS_PER_AGENT]) -> f32 {
+    pub fn geometric_mean(self: &mut Self) -> f32 {
     // Calculate the the geometric mean of the scores by computing the arithmetic mean of logarithms of the scores
-    return (scores.iter().map(|&x| x as f32).fold(0.0, |acc, x| acc + x.ln()) / RUNS_PER_AGENT as f32).exp();
+    return (self.fitness.iter().map(|&x| x as f32).fold(0.0, |acc, x| acc + x.ln()) / RUNS_PER_AGENT as f32).exp();
+    }
+    pub fn get_worst(self: &mut Self) -> f32 {
+    // Get the minimum score
+    return *self.fitness.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+    }
 }
+
 
 pub fn run_all(agents: &mut Vec<Agent>) {
     agents.par_iter_mut().enumerate().for_each(|(_, agent)| {

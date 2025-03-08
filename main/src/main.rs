@@ -8,7 +8,7 @@ use std::path::Path;
 
 const GRID_SIZE: usize = 4;
 
-const POPULATION_SIZE: usize = 1000;
+const POPULATION_SIZE: usize = 2000;
 
 const SEED: u64 = 0;
 
@@ -89,11 +89,11 @@ fn train() {
         // Run the population
         population::run_all(&mut population);
         // Get the best agent
-        let mut best_score = 0;
+        let mut best_score = 0.0;
         let mut best_agent = 0;
         for i in 0..population.len() {
-            if population[i].score >= best_score {
-                best_score = population[i].score;
+            if population[i].geometric_mean() >= best_score {
+                best_score = population[i].geometric_mean();
                 best_agent = i;
             }
         }
@@ -103,9 +103,9 @@ fn train() {
         best_network.save(&path, gen_count as usize);
 
         // Print the best agent's score
-        println!("Generation {}: {}     Best block : {}     Moves : {}     Delta : {}", gen_count, population[best_agent].score, 1 << population[best_agent].bestbest,population[best_agent].total_moves,population[best_agent].score - population[0].score);
+        println!("Generation {}: {}     Best block accross all games : {}", gen_count, best_score, 1 << population[best_agent].highest_tile);
         // Create the next generation
-        population::clone_population(&mut population, best_network, gen_count * population::RUNS_PER_AGENT as u64, 0.05, 0.3/* * (0.97f32).powi(gen_count as i32 / 25)*/);
+        population::clone_population(&mut population, best_network, gen_count * population::RUNS_PER_AGENT as u64, 0.25, 0.5);
         gen_count += 1;
     }
 }
