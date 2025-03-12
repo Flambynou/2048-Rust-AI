@@ -1,4 +1,5 @@
 mod renderer;
+mod fastgame;
 mod game;
 mod population;
 mod neural_network;
