@@ -1,10 +1,12 @@
 // An ultra optimized implementation of 2048 based on lookup tables and precomputed moves
 
 // Computing a lookup table of every possible left row move
-use once_cell::sync::Lazy;
+use crate::Random;
+use crate::game::Direction;
+
 const MAX_BLOCK_EXPONENT: usize = 16;
 const TABLE_SIZE: usize = 104976;
-static LEFT_MOVE_TABLE: Lazy<[Result; TABLE_SIZE]> = Lazy::new(|| {compute_left_move_table()});
+static LEFT_MOVE_TABLE: [Result; TABLE_SIZE] = compute_left_move_table();
 
 #[derive(Copy)]
 #[derive(Clone)]
@@ -76,15 +78,15 @@ const fn const_compute_move_left(row: usize) -> Result {
 fn move_row_left(row: &u32) -> (u32,u32) {
 	let result = LEFT_MOVE_TABLE[*row as usize];
 
-	if !changed {
-		return (row, 0);
+	if !result.changed {
+		return (*row, 0);
 	}
 
-	(new_state, score)
+	(result.new_state, result.score)
 
 }
 
-fn move_row_right(row: u32) -> (u32, u32) {
+fn reverse_row(row:u32) -> u32 {
     // Extract each tile
     let a = (row >> 15) & 0x1F;
     let b = (row >> 10) & 0x1F;
@@ -92,10 +94,14 @@ fn move_row_right(row: u32) -> (u32, u32) {
     let d = row & 0x1F;
     
     // Reverse the tiles
-    let reversed = (d << 15) | (c << 10) | (b << 5) | a;
+    return (d << 15) | (c << 10) | (b << 5) | a;
+}
+
+fn move_row_right(row: u32) -> (u32, u32) {
+    
     
     // Perform the left move
-    let (moved, score) = move_row_left(reversed);
+    let (moved, score) = move_row_left(&reverse_row(row));
     
     // Reverse back
     let result_a = (moved >> 15) & 0x1F;
@@ -106,7 +112,7 @@ fn move_row_right(row: u32) -> (u32, u32) {
     ((result_d << 15) | (result_c << 10) | (result_b << 5) | result_a, score)
 }
 
-fn move_grid_left(grid:[u32;4]) -> (u32,u32) {
+fn move_grid_left(grid:[u32;4]) -> ([u32;4],u32) {
 	let mut new_grid = [0;4];
 	let mut score = 0;
 
@@ -119,12 +125,12 @@ fn move_grid_left(grid:[u32;4]) -> (u32,u32) {
 	(new_grid, score)
 }
 
-fn move_grid_right(grid:[u32;4]) -> (u32,u32) {
+fn move_grid_right(grid:[u32;4]) -> ([u32;4],u32) {
 	let mut new_grid = [0;4];
 	let mut score = 0;
 
 	for i in 0..4 {
-		let (new_row, row_score) = move_row_right(&grid[i]);
+		let (new_row, row_score) = move_row_right(grid[i]);
 		new_grid[i] = new_row;
 		score += row_score;
 	}
@@ -148,7 +154,7 @@ fn update_column(grid:&mut [u32;4], col_num:usize, column:u32) {
     }
 }
 
-fn move_grid_up(grid:[u32;4]) -> (u32,u32) {
+fn move_grid_up(grid:[u32;4]) -> ([u32;4],u32) {
     let mut new_grid = [0;4];
     let mut score = 0;
 
@@ -162,13 +168,13 @@ fn move_grid_up(grid:[u32;4]) -> (u32,u32) {
     (new_grid, score)
 }
 
-fn move_grid_down(grid:[u32;4]) -> (u32,u32) {
+fn move_grid_down(grid:[u32;4]) -> ([u32;4],u32) {
     let mut new_grid = [0;4];
     let mut score = 0;
 
     for i in 0..4 {
         let column = extract_column(grid, i);
-        let (new_column, column_score) = move_row_right(&column);
+        let (new_column, column_score) = move_row_right(column);
         update_column(&mut new_grid, i, new_column);
         score += column_score;
     }
@@ -176,26 +182,23 @@ fn move_grid_down(grid:[u32;4]) -> (u32,u32) {
     (new_grid, score)
 }
 
-fn add_block(grid:&mut [u32;4], rand:&Random) {
-    let mut empty = Vec::new();
-    for i in 0..16 {
-        if grid[i] == 0 {
-            empty.push(i);
+fn add_block(mut grid: [u32;4], (index, value):(usize,u8)) {
+    // Add a block of value at the index'th empty position
+    let mut empty_count = 0;
+    for i in 0..4 {
+        if (grid[i] & 0x1F) == 0 {
+            if empty_count == index {
+                grid[i] |= value as u32;
+                break;
+            }
+            empty_count += 1;
         }
     }
-
-    if empty.len() == 0 {
-        return;
-    }
-
-    let index = empty[rand.rand() as usize % empty.len()];
-    let value = if rand.rand() % 10 == 0 { 2 } else { 1 };
-    grid[index] = value;
 }
 
 fn can_go_left(grid:[u32;4]) -> bool {
     for i in 0..4 {
-        if LEFT_MOVE_TABLE[grid[i]].changed {
+        if LEFT_MOVE_TABLE[grid[i] as usize].changed {
             return true;
         }
     }
@@ -204,7 +207,7 @@ fn can_go_left(grid:[u32;4]) -> bool {
 
 fn can_go_right(grid:[u32;4]) -> bool {
     for i in 0..4 {
-        if LEFT_MOVE_TABLE[reverse_row(grid[i])].changed {
+        if LEFT_MOVE_TABLE[reverse_row(grid[i]) as usize].changed {
             return true;
         }
     }
@@ -214,7 +217,7 @@ fn can_go_right(grid:[u32;4]) -> bool {
 fn can_go_up(new_grid:[u32;4]) -> bool {
     for i in 0..4 {
         let column = extract_column(new_grid, i);
-        if LEFT_MOVE_TABLE[column].changed {
+        if LEFT_MOVE_TABLE[column as usize].changed {
             return true;
         }
     }
@@ -224,7 +227,7 @@ fn can_go_up(new_grid:[u32;4]) -> bool {
 fn can_go_down(new_grid:[u32;4]) -> bool {
     for i in 0..4 {
         let column = extract_column(new_grid, i);
-        if LEFT_MOVE_TABLE[reverse_row(column)].changed {
+        if LEFT_MOVE_TABLE[reverse_row(column) as usize].changed {
             return true;
         }
     }
@@ -235,6 +238,57 @@ fn is_lost(grid:[u32;4]) -> bool {
     !(can_go_left(grid) || can_go_right(grid) || can_go_up(grid) || can_go_down(grid))
 }
 
+fn get_possible_directions(grid:[u32;4]) -> Vec<Direction> {
+    let mut directions = Vec::new();
+    if can_go_left(grid) {
+        directions.push(Direction::Left);
+    }
+    if can_go_right(grid) {
+        directions.push(Direction::Right);
+    }
+    if can_go_up(grid) {
+        directions.push(Direction::Up);
+    }
+    if can_go_down(grid) {
+        directions.push(Direction::Down);
+    }
+    directions
+}
 
+fn make_move(mut grid: [u32;4], direction:Direction, rand:Random) -> u32 {
+    if get_possible_directions(grid).contains(&direction) {
+        return 0;
+    }
+    let (new_grid, score) = match direction {
+        Direction::Left => move_grid_left(grid),
+        Direction::Right => move_grid_right(grid),
+        Direction::Up => move_grid_up(grid),
+        Direction::Down => move_grid_down(grid),
+        Direction::None => return 0,
+    };
+    grid = new_grid;
+    add_block(grid, random_block(empty_count(grid), &rand));
+
+    score
+}
+
+fn random_block(empty_count:usize, rand:&Random) -> (usize,u8) {
+    let index = (empty_count as f32 * rand.gen::<f32>()) as usize;
+    let value = if rand.gen::<f32>() < 0.9 {1} else {2};
+    (index, value)
+}
+
+fn empty_count(grid:[u32;4]) -> usize {
+    // Count the number of empty blocks (keeping in mind each line is stored as a u32)
+    let mut count = 0;
+    for i in 0..4 {
+        for j in 0..4 {
+            if (grid[i] >> (j * 5)) & 0x1F == 0 {
+                count += 1;
+            }
+        }
+    }
+    count
+}
 
 

@@ -6,7 +6,7 @@ mod neural_network;
 
 use seeded_random::{Random,Seed};
 use std::path::Path;
-
+use time::Instant;
 const GRID_SIZE: usize = 4;
 
 const POPULATION_SIZE: usize = 2000;
