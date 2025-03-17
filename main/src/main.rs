@@ -3,7 +3,7 @@ mod fastgame;
 mod game;
 mod population;
 mod neural_network;
-mod expectimax;
+mod minimax;
 
 use seeded_random::{Random,Seed};
 use std::path::Path;

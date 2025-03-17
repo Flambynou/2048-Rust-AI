@@ -16,7 +16,7 @@ struct Result {
 	score : u32,
 }
 
-struct FastGame {
+pub struct FastGame {
     Table: [Result; TABLE_SIZE],
 }
 
@@ -193,20 +193,6 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn add_block(mut grid: [u32;4], (index, value):(usize,u8)) {
-        // Add a block of value at the index'th empty position
-        let mut empty_count = 0;
-        for i in 0..4 {
-            if (grid[i] & 0x1F) == 0 {
-                if empty_count == index {
-                    grid[i] |= value as u32;
-                    break;
-                }
-                empty_count += 1;
-            }
-        }
-    }
-
     fn can_go_left(&self, grid:[u32;4]) -> bool {
         for i in 0..4 {
             if self.Table[grid[i] as usize].changed {
@@ -245,11 +231,11 @@ impl FastGame {
         return false;
     }
 
-    fn is_lost(&self, grid:[u32;4]) -> bool {
+    pub fn is_lost(&self, grid:[u32;4]) -> bool {
         !(self.can_go_left(grid) || self.can_go_right(grid) || self.can_go_up(grid) || self.can_go_down(grid))
     }
 
-    fn get_possible_directions(&self, grid:[u32;4]) -> Vec<Direction> {
+    pub fn get_possible_directions(&self, grid:[u32;4]) -> Vec<Direction> {
         let mut directions = Vec::new();
         if self.can_go_left(grid) {
             directions.push(Direction::Left);
@@ -266,43 +252,34 @@ impl FastGame {
         directions
     }
 
-    fn make_move(&self, mut grid: [u32;4], direction:Direction, rand:Random) -> u32 {
-        if self.get_possible_directions(grid).contains(&direction) {
-            return 0;
-        }
+    pub fn make_move(&self, grid: [u32;4], direction:Direction) -> ([u32;4],u32) {
         let (new_grid, score) = match direction {
             Direction::Left => self.move_grid_left(grid),
             Direction::Right => self.move_grid_right(grid),
             Direction::Up => self.move_grid_up(grid),
             Direction::Down => self.move_grid_down(grid),
-            Direction::None => return 0,
+            Direction::None => return (grid, 0),
         };
-        grid = new_grid;
-        Self::add_block(grid, Self::random_block(Self::empty_count(grid), &rand));
-
-        score
+        (new_grid, score)
     }
 
-    fn random_block(empty_count:usize, rand:&Random) -> (usize,u8) {
-        let index = (empty_count as f32 * rand.gen::<f32>()) as usize;
-        let value = if rand.gen::<f32>() < 0.9 {1} else {2};
-        (index, value)
-    }
-
-    fn empty_count(grid:[u32;4]) -> usize {
-        // Count the number of empty blocks (keeping in mind each line is stored as a u32)
-        let mut count = 0;
+    pub fn empty_list(&self, grid:[u32;4]) -> Vec<(usize,usize)> {
+        let mut empty = Vec::new();
         for i in 0..4 {
             for j in 0..4 {
                 if (grid[i] >> (j * 5)) & 0x1F == 0 {
-                    count += 1;
+                    empty.push((i,j));
                 }
             }
         }
-        count
+        empty
     }
 
-
+    pub fn place_block(&self, grid:[u32;4], pos:(usize,usize), value:u32) -> [u32;4] {
+        let mut new_grid = grid;
+        new_grid[pos.0] |= value << (pos.1 * 5);
+        new_grid
+    }
 
 }
 
