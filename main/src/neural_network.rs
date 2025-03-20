@@ -8,15 +8,22 @@ pub struct NeuralNetwork {
     pub bias: Vec<f32>,
     layers: Vec<u32>,
     activation_func_hidden: fn(f32) -> f32,
-    activation_func_output: fn(f32) -> f32
+    activation_func_output: fn(f32) -> f32,
 }
 
 impl NeuralNetwork {
-    pub fn new(layers: Vec<u32>, activation_func_hidden: usize, activation_func_output: usize, initial_weight_range: (f32, f32), initial_bias_range: (f32, f32)) -> NeuralNetwork {
+    pub fn new(
+        layers: Vec<u32>,
+        activation_func_hidden: usize,
+        activation_func_output: usize,
+        initial_weight_range: (f32, f32),
+        initial_bias_range: (f32, f32),
+    ) -> NeuralNetwork {
         let mut weights = Vec::new();
         for i in 0..layers.len() - 1 {
             for _ in 0..layers[i] * layers[i + 1] {
-                weights.push(rand::rng().random_range(initial_weight_range.0..initial_weight_range.1));
+                weights
+                    .push(rand::rng().random_range(initial_weight_range.0..initial_weight_range.1));
             }
         }
 
@@ -32,7 +39,7 @@ impl NeuralNetwork {
             bias,
             layers,
             activation_func_hidden: ACTIVATION_FUNCTIONS[activation_func_hidden],
-            activation_func_output: ACTIVATION_FUNCTIONS[activation_func_output]
+            activation_func_output: ACTIVATION_FUNCTIONS[activation_func_output],
         }
     }
 
@@ -49,7 +56,7 @@ impl NeuralNetwork {
         }
         let activation_func_hidden: usize = contents[layers_len + 2].parse().unwrap();
         let activation_func_output: usize = contents[layers_len + 3].parse().unwrap();
-        
+
         // Calculate the number of weights and bias
         let mut weight_len = 0;
         for i in 0..layers.len() - 1 {
@@ -70,14 +77,16 @@ impl NeuralNetwork {
             bias.push(contents[layers_len + 4 + weight_len + i].parse().unwrap());
         }
 
-        (NeuralNetwork {
-            weights,
-            bias,
-            layers,
-            activation_func_hidden: ACTIVATION_FUNCTIONS[activation_func_hidden],
-            activation_func_output: ACTIVATION_FUNCTIONS[activation_func_output]
-        },
-        generation)
+        (
+            NeuralNetwork {
+                weights,
+                bias,
+                layers,
+                activation_func_hidden: ACTIVATION_FUNCTIONS[activation_func_hidden],
+                activation_func_output: ACTIVATION_FUNCTIONS[activation_func_output],
+            },
+            generation,
+        )
     }
 
     pub fn save(&self, path: &str, generation: usize) {
@@ -85,15 +94,33 @@ impl NeuralNetwork {
         // First save all metadata (generation, layers, weight_range, bias_range)
         file.write_all(generation.to_string().as_bytes()).unwrap();
         file.write_all("\n".as_bytes()).unwrap();
-        file.write_all(self.layers.len().to_string().as_bytes()).unwrap();
+        file.write_all(self.layers.len().to_string().as_bytes())
+            .unwrap();
         file.write_all("\n".as_bytes()).unwrap();
         for i in 0..self.layers.len() {
-            file.write_all(self.layers[i].to_string().as_bytes()).unwrap();
+            file.write_all(self.layers[i].to_string().as_bytes())
+                .unwrap();
             file.write_all("\n".as_bytes()).unwrap();
         }
-        file.write_all(ACTIVATION_FUNCTIONS.iter().position(|&x| x == self.activation_func_hidden).unwrap().to_string().as_bytes()).unwrap();
+        file.write_all(
+            ACTIVATION_FUNCTIONS
+                .iter()
+                .position(|&x| x == self.activation_func_hidden)
+                .unwrap()
+                .to_string()
+                .as_bytes(),
+        )
+        .unwrap();
         file.write_all("\n".as_bytes()).unwrap();
-        file.write_all(ACTIVATION_FUNCTIONS.iter().position(|&x| x == self.activation_func_output).unwrap().to_string().as_bytes()).unwrap();
+        file.write_all(
+            ACTIVATION_FUNCTIONS
+                .iter()
+                .position(|&x| x == self.activation_func_output)
+                .unwrap()
+                .to_string()
+                .as_bytes(),
+        )
+        .unwrap();
         file.write_all("\n".as_bytes()).unwrap();
 
         // Save the weights and bias
@@ -112,9 +139,6 @@ impl NeuralNetwork {
         file.write_all(bias.as_bytes()).unwrap();
     }
 
-
-
-
     pub fn feed_forward(&self, inputs: Vec<f32>) -> Vec<f32> {
         let mut weight_index = 0;
         let mut bias_index = 0;
@@ -122,7 +146,9 @@ impl NeuralNetwork {
         for i in 0..self.layers.len() - 1 {
             // First check if the number of inputs is equal to the number of neurons in the current layer
             if current_layer.len() != self.layers[i] as usize {
-                panic!("The number of inputs is not equal to the number of neurons in the input layer");
+                panic!(
+                    "The number of inputs is not equal to the number of neurons in the input layer"
+                );
             }
 
             let mut outputs = Vec::new();
@@ -133,7 +159,7 @@ impl NeuralNetwork {
                     weight_index += 1;
                 }
                 // Push the output to the outputs vector
-                if  j == self.layers[i + 1] - 1 {
+                if j == self.layers[i + 1] - 1 {
                     outputs.push((self.activation_func_output)(sum + self.bias[bias_index]));
                 } else {
                     outputs.push((self.activation_func_hidden)(sum + self.bias[bias_index]));
@@ -143,9 +169,8 @@ impl NeuralNetwork {
             current_layer = outputs;
         }
 
-        return current_layer
+        return current_layer;
     }
-
 
     pub fn mutate(&mut self, mutation_rate: f32, mutation_strength: f32) {
         for i in 0..self.weights.len() {
@@ -161,7 +186,6 @@ impl NeuralNetwork {
         }
     }
 }
-
 
 // Array of activation functions
 pub fn sigmoid(x: f32) -> f32 {

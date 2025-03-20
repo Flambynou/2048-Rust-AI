@@ -1,11 +1,11 @@
-mod renderer;
 mod fastgame;
 mod game;
-mod population;
-mod neural_network;
 mod minimax;
+mod neural_network;
+mod population;
+mod renderer;
 
-use seeded_random::{Random,Seed};
+use seeded_random::{Random, Seed};
 use std::path::Path;
 use time::Instant;
 const GRID_SIZE: usize = 4;
@@ -13,7 +13,6 @@ const GRID_SIZE: usize = 4;
 const POPULATION_SIZE: usize = 2000;
 
 const SEED: u64 = 0;
-
 
 fn main() {
     // Ask user for playing / training / ai mode
@@ -28,14 +27,13 @@ fn main() {
         "1" => play(),
         "2" => train(),
         "3" => ai(),
-        _ => println!("Invalid mode")
+        _ => println!("Invalid mode"),
     }
 }
 
-
 fn play() {
     let rand = Random::from_seed(Seed::unsafe_new(SEED));
-    let mut game_state: [u8; GRID_SIZE*GRID_SIZE] = [0; GRID_SIZE*GRID_SIZE];
+    let mut game_state: [u8; GRID_SIZE * GRID_SIZE] = [0; GRID_SIZE * GRID_SIZE];
     game::add_block(&mut game_state, &rand);
     game::add_block(&mut game_state, &rand);
     renderer::render(game_state);
@@ -44,13 +42,15 @@ fn play() {
         let mut line = String::new();
         std::io::stdin().read_line(&mut line).unwrap();
         let line = line.trim();
-        if line == "" { continue }
+        if line == "" {
+            continue;
+        }
         let direction: game::Direction = match line {
             "z" => game::Direction::Up,
             "s" => game::Direction::Down,
             "q" => game::Direction::Left,
             "d" => game::Direction::Right,
-            _ => continue
+            _ => continue,
         };
         let score = game::try_move(&mut game_state, direction, &rand);
         if game::is_lost(&game_state) {
@@ -63,7 +63,6 @@ fn play() {
         println!("Score: {}", total_score);
     }
 }
-
 
 fn train() {
     // Ask user for network name (if it exists load, else create)
@@ -84,7 +83,11 @@ fn train() {
         println!("Weights: {}", network.weights.len());
         println!("Biases: {}", network.bias.len());
         gen_count = gen as u64;
-        population::load_population(POPULATION_SIZE, gen as u64 * population::RUNS_PER_AGENT as u64, network)
+        population::load_population(
+            POPULATION_SIZE,
+            gen as u64 * population::RUNS_PER_AGENT as u64,
+            network,
+        )
     };
 
     loop {
@@ -105,13 +108,23 @@ fn train() {
         best_network.save(&path, gen_count as usize);
 
         // Print the best agent's score
-        println!("Generation {}: {}     Best block accross all games : {}", gen_count, best_score, 1 << population[best_agent].highest_tile);
+        println!(
+            "Generation {}: {}     Best block accross all games : {}",
+            gen_count,
+            best_score,
+            1 << population[best_agent].highest_tile
+        );
         // Create the next generation
-        population::clone_population(&mut population, best_network, gen_count * population::RUNS_PER_AGENT as u64, 0.25, 0.5);
+        population::clone_population(
+            &mut population,
+            best_network,
+            gen_count * population::RUNS_PER_AGENT as u64,
+            0.25,
+            0.5,
+        );
         gen_count += 1;
     }
 }
-
 
 fn ai() {
     // Ask user for network name
@@ -128,7 +141,7 @@ fn ai() {
     }
     let (network, _) = neural_network::NeuralNetwork::load(&path);
     let mut agent = population::Agent::from(network, SEED);
-    
+
     let rand = Random::from_seed(Seed::unsafe_new(0));
     game::add_block(&mut agent.game_state, &rand);
     game::add_block(&mut agent.game_state, &rand);
@@ -151,7 +164,6 @@ fn ai() {
         println!("Score: {}", total_score);
     }
 }
-
 
 /*fn do_a_barrel_roll(mut game_state: [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {
     let mut direction: game::Direction = game::Direction::Left;
