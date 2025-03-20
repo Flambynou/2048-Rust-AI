@@ -1,7 +1,6 @@
 // An ultra optimized implementation of 2048 based on lookup tables and precomputed moves
 
 // Computing a lookup table of every possible left row move
-use crate::Random;
 use crate::game::Direction;
 
 const MAX_BLOCK_EXPONENT: usize = 16;
@@ -252,7 +251,7 @@ impl FastGame {
         directions
     }
 
-    pub fn make_move(&self, grid: [u32;4], direction:Direction) -> ([u32;4],u32) {
+    pub fn make_move(&self, grid: [u32;4], direction:&Direction) -> ([u32;4],u32) {
         let (new_grid, score) = match direction {
             Direction::Left => self.move_grid_left(grid),
             Direction::Right => self.move_grid_right(grid),
