@@ -7,7 +7,6 @@ mod renderer;
 
 use seeded_random::{Random, Seed};
 use std::path::Path;
-use time::Instant;
 const GRID_SIZE: usize = 4;
 
 const POPULATION_SIZE: usize = 2000;
@@ -20,6 +19,7 @@ fn main() {
     println!("1. Play");
     println!("2. Train");
     println!("3. AI");
+    println!("4. Minimax");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
     let line = line.trim();
@@ -27,6 +27,7 @@ fn main() {
         "1" => play(),
         "2" => train(),
         "3" => ai(),
+        "4" => use_minimax(),
         _ => println!("Invalid mode"),
     }
 }
@@ -164,6 +165,54 @@ fn ai() {
         println!("Score: {}", total_score);
     }
 }
+
+fn use_minimax() {
+    // Minimax depth :
+    let depth = 1;
+    // Generate an empty grid
+    let mut game_state = [0u32;4];
+    // Compute the lookup table
+    let fast = fastgame::FastGame::new();
+    // Add two random blocks
+    let rand = Random::from_seed(Seed::unsafe_new(SEED));
+    game_state = fast.add_random_block(game_state, &rand);
+    game_state = fast.add_random_block(game_state, &rand);
+    let mut score:usize = 0;
+    // Main loop: print, compute best move, play
+    loop {
+        // Render the game and score
+        renderer::render(fast.to_flat_array(game_state));
+        println!("Score: {}", score);
+        // Wait for player to see the move
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        // Get the best direction, play it, and add a random block
+        let best_direction = minimax::get_best_direction(&fast, game_state, depth);
+        if best_direction == game::Direction::None {
+            println!("No possible move !");
+            break;
+        }
+        let (new_game_state, move_score) = fast.make_move(game_state, &best_direction);
+        score += move_score as usize;
+        game_state = new_game_state;
+        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
+        renderer::render(fast.to_flat_array(game_state));
+        println!("Made move : {}", best_direction);
+        game_state = fast.add_random_block(game_state, &rand);
+        renderer::render(fast.to_flat_array(game_state));
+        println!("Added random block");
+        // Check for loss
+        if fast.is_lost(game_state) {
+            renderer::render(fast.to_flat_array(game_state));
+            println!("Final score : {}",score);
+            println!("You lost !");
+            break;
+        }
+    }
+
+}
+
+
 
 /*fn do_a_barrel_roll(mut game_state: [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {
     let mut direction: game::Direction = game::Direction::Left;

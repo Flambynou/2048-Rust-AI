@@ -1,3 +1,6 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt;
 use crate::GRID_SIZE;
 use seeded_random::Random;
 
@@ -18,6 +21,18 @@ impl Clone for Direction {
             Self::Down => Self::Down,
             Self::None => Self::None,
         }
+    }
+}
+impl Display for Direction {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let direction = match self {
+            Self::Left => "Left",
+            Self::Right => "Right",
+            Self::Up => "Up",
+            Self::Down => "Down",
+            Self::None => "None",
+        };
+        write!(f, "{}", direction)
     }
 }
 

@@ -14,7 +14,7 @@ enum NodeType {
     Upperbound,
 }
 
-fn get_best_direction(game: &FastGame, grid: [u32; 4], search_depth: usize) -> game::Direction {
+pub fn get_best_direction(game: &FastGame, grid: [u32; 4], search_depth: usize) -> game::Direction {
     // Returns the direction with the best minimax evaluation
 
     let mut best_direction = game::Direction::None;
@@ -92,7 +92,7 @@ fn minimax(
         for direction in game.get_possible_directions(grid) {
             let (new_grid, _score) = game.make_move(grid, &direction);
             value = value.max(minimax(game, new_grid, depth - 1, false, alpha, beta, tt));
-            let alpha = alpha.max(value);
+            alpha = alpha.max(value);
             if alpha >= beta {
                 // Beta cutoff
                 break;
@@ -106,7 +106,7 @@ fn minimax(
             // Spawn a 2
             let new_grid = game.place_block(grid, empty, 1);
             value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt));
-            let beta = beta.min(value);
+            beta = beta.min(value);
             if beta <= alpha {
                 // Alpha cutoff
                 break;

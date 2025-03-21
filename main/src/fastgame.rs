@@ -1,10 +1,11 @@
 // An ultra optimized implementation of 2048 based on lookup tables and precomputed moves
 
 // Computing a lookup table of every possible left row move
+use seeded_random::Random;
 use crate::game::Direction;
 
-const MAX_BLOCK_EXPONENT: usize = 16;
-const TABLE_SIZE: usize = 104976;
+const MAX_BLOCK_EXPONENT: usize = 17;
+const TABLE_SIZE: usize = 575025;
 
 #[derive(Copy, Clone)]
 struct Result {
@@ -14,13 +15,13 @@ struct Result {
 }
 
 pub struct FastGame {
-    Table: [Result; TABLE_SIZE],
+    table: [Result; TABLE_SIZE],
 }
 
 impl FastGame {
-    fn new() -> FastGame {
+    pub fn new() -> FastGame {
         FastGame {
-            Table: Self::compute_left_move_table(),
+            table: Self::compute_left_move_table(),
         }
     }
     fn compute_left_move_table() -> [Result; TABLE_SIZE] {
@@ -89,7 +90,7 @@ impl FastGame {
     // Implementation of the game logic
 
     fn move_row_left(&self, row: &u32) -> (u32, u32) {
-        let result = self.Table[*row as usize];
+        let result = self.table[*row as usize];
 
         if !result.changed {
             return (*row, 0);
@@ -188,7 +189,7 @@ impl FastGame {
         for i in 0..4 {
             let column = FastGame::extract_column(grid, i);
             let (new_column, column_score) = self.move_row_right(column);
-            FastGame::update_column(&mut new_grid, i, new_column);
+            Self::update_column(&mut new_grid, i, new_column);
             score += column_score;
         }
 
@@ -197,7 +198,7 @@ impl FastGame {
 
     fn can_go_left(&self, grid: [u32; 4]) -> bool {
         for i in 0..4 {
-            if self.Table[grid[i] as usize].changed {
+            if self.table[grid[i] as usize].changed {
                 return true;
             }
         }
@@ -206,7 +207,7 @@ impl FastGame {
 
     fn can_go_right(&self, grid: [u32; 4]) -> bool {
         for i in 0..4 {
-            if self.Table[Self::reverse_row(grid[i]) as usize].changed {
+            if self.table[Self::reverse_row(grid[i]) as usize].changed {
                 return true;
             }
         }
@@ -216,7 +217,7 @@ impl FastGame {
     fn can_go_up(&self, new_grid: [u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
-            if self.Table[column as usize].changed {
+            if self.table[column as usize].changed {
                 return true;
             }
         }
@@ -226,7 +227,7 @@ impl FastGame {
     fn can_go_down(&self, new_grid: [u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
-            if self.Table[Self::reverse_row(column) as usize].changed {
+            if self.table[Self::reverse_row(column) as usize].changed {
                 return true;
             }
         }
@@ -284,5 +285,27 @@ impl FastGame {
         let mut new_grid = grid;
         new_grid[pos.0] |= value << (pos.1 * 5);
         new_grid
+    }
+
+    pub fn add_random_block(&self, grid: [u32; 4], rand: &Random) -> [u32;4] {
+        // Adds a block of random value at a random place
+        let empty = self.empty_list(grid);
+        if empty.len() == 0 {
+            return grid;
+        }
+        let value: u8 = if rand.gen::<f32>() < 0.9 { 1 } else { 2 };
+        let index = (empty.len() as f32 * rand.gen::<f32>()) as usize;
+        let pos = empty[index];
+        self.place_block(grid, pos, value as u32)
+    }
+
+    pub fn to_flat_array(&self, grid: [u32;4]) -> [u8; 16] {
+        let mut flat = [0; 16];
+        for i in 0..4 {
+            for j in 0..4 {
+                flat[i * 4 + j] = ((grid[i] >> (j * 5)) & 0x1F) as u8;
+            }
+        }
+        return flat;
     }
 }
