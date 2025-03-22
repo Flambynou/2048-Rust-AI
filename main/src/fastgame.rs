@@ -5,7 +5,7 @@ use seeded_random::Random;
 use crate::game::Direction;
 
 const MAX_BLOCK_EXPONENT: usize = 17;
-const TABLE_SIZE: usize = 575026;
+const TABLE_SIZE: usize = (MAX_BLOCK_EXPONENT<<15) + (MAX_BLOCK_EXPONENT<<10) + (MAX_BLOCK_EXPONENT<<5) + (MAX_BLOCK_EXPONENT) + 1;
 
 #[derive(Copy, Clone)]
 struct Result {
