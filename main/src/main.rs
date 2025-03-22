@@ -180,34 +180,37 @@ fn use_minimax() {
     let mut score:usize = 0;
     // Main loop: print, compute best move, play
     loop {
-        // Render the game and score
-        renderer::render(fast.to_flat_array(game_state));
-        println!("Score: {}", score);
         // Wait for player to see the move
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
         // Get the best direction, play it, and add a random block
+        println!("Computing best move...");
         let best_direction = minimax::get_best_direction(&fast, game_state, depth);
         if best_direction == game::Direction::None {
             println!("No possible move !");
             break;
         }
-        let (new_game_state, move_score) = fast.make_move(game_state, &best_direction);
+        println!("Best move : {:?}", best_direction);
+        let (new_game_state, move_score) = fast.make_move(&game_state, &best_direction);
         score += move_score as usize;
         game_state = new_game_state;
-        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
         renderer::render(fast.to_flat_array(game_state));
         println!("Made move : {}", best_direction);
+        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
         game_state = fast.add_random_block(game_state, &rand);
         renderer::render(fast.to_flat_array(game_state));
         println!("Added random block");
+        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
         // Check for loss
-        if fast.is_lost(game_state) {
+        if fast.is_lost(&game_state) {
             renderer::render(fast.to_flat_array(game_state));
             println!("Final score : {}",score);
             println!("You lost !");
             break;
         }
+        // Render the game and score
+        //renderer::render(fast.to_flat_array(game_state));
+        println!("Score: {}", score);
     }
 
 }

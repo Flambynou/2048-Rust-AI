@@ -5,6 +5,7 @@ use crate::GRID_SIZE;
 use seeded_random::Random;
 
 #[derive(PartialEq)]
+#[derive(Debug)]
 pub enum Direction {
     Left,
     Right,

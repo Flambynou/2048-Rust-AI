@@ -5,7 +5,7 @@ use seeded_random::Random;
 use crate::game::Direction;
 
 const MAX_BLOCK_EXPONENT: usize = 17;
-const TABLE_SIZE: usize = 575025;
+const TABLE_SIZE: usize = 575026;
 
 #[derive(Copy, Clone)]
 struct Result {
@@ -15,7 +15,7 @@ struct Result {
 }
 
 pub struct FastGame {
-    table: [Result; TABLE_SIZE],
+    table: Box<[Result]>,
 }
 
 impl FastGame {
@@ -24,12 +24,15 @@ impl FastGame {
             table: Self::compute_left_move_table(),
         }
     }
-    fn compute_left_move_table() -> [Result; TABLE_SIZE] {
-        let mut table = [Result {
-            new_state: 0,
-            changed: false,
-            score: 0,
-        }; TABLE_SIZE];
+    fn compute_left_move_table() -> Box<[Result]> {
+        let mut table = vec![
+            Result {
+                new_state: 0,
+                changed: false,
+                score: 0,
+            }; 
+            TABLE_SIZE
+        ].into_boxed_slice();
         let mut a = 0;
 
         while a <= MAX_BLOCK_EXPONENT {
@@ -43,6 +46,10 @@ impl FastGame {
                         if row < TABLE_SIZE {
                             // Safety check in case we exceed table size
                             table[row] = Self::compute_move_left(row);
+                        }
+                        else {
+                            println!("Error: row {} out of bounds", row);
+                            break;
                         }
                         d += 1;
                     }
@@ -126,7 +133,7 @@ impl FastGame {
         )
     }
 
-    fn move_grid_left(&self, grid: [u32; 4]) -> ([u32; 4], u32) {
+    fn move_grid_left(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -139,7 +146,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn move_grid_right(&self, grid: [u32; 4]) -> ([u32; 4], u32) {
+    fn move_grid_right(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -152,7 +159,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn extract_column(grid: [u32; 4], col: usize) -> u32 {
+    fn extract_column(grid: &[u32; 4], col: usize) -> u32 {
         let mut column = 0;
         for i in 0..4 {
             column |= ((grid[i] >> (col * 5)) & 0x1F) << (i * 5);
@@ -168,7 +175,7 @@ impl FastGame {
         }
     }
 
-    fn move_grid_up(&self, grid: [u32; 4]) -> ([u32; 4], u32) {
+    fn move_grid_up(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -182,7 +189,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn move_grid_down(&self, grid: [u32; 4]) -> ([u32; 4], u32) {
+    fn move_grid_down(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -196,7 +203,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn can_go_left(&self, grid: [u32; 4]) -> bool {
+    fn can_go_left(&self, grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             if self.table[grid[i] as usize].changed {
                 return true;
@@ -205,7 +212,7 @@ impl FastGame {
         return false;
     }
 
-    fn can_go_right(&self, grid: [u32; 4]) -> bool {
+    fn can_go_right(&self, grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             if self.table[Self::reverse_row(grid[i]) as usize].changed {
                 return true;
@@ -214,7 +221,7 @@ impl FastGame {
         return false;
     }
 
-    fn can_go_up(&self, new_grid: [u32; 4]) -> bool {
+    fn can_go_up(&self, new_grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
             if self.table[column as usize].changed {
@@ -224,7 +231,7 @@ impl FastGame {
         return false;
     }
 
-    fn can_go_down(&self, new_grid: [u32; 4]) -> bool {
+    fn can_go_down(&self, new_grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
             if self.table[Self::reverse_row(column) as usize].changed {
@@ -234,14 +241,14 @@ impl FastGame {
         return false;
     }
 
-    pub fn is_lost(&self, grid: [u32; 4]) -> bool {
+    pub fn is_lost(&self, grid: &[u32; 4]) -> bool {
         !(self.can_go_left(grid)
             || self.can_go_right(grid)
             || self.can_go_up(grid)
             || self.can_go_down(grid))
     }
 
-    pub fn get_possible_directions(&self, grid: [u32; 4]) -> Vec<Direction> {
+    pub fn get_possible_directions(&self, grid: &[u32; 4]) -> Vec<Direction> {
         let mut directions = Vec::new();
         if self.can_go_left(grid) {
             directions.push(Direction::Left);
@@ -258,18 +265,18 @@ impl FastGame {
         directions
     }
 
-    pub fn make_move(&self, grid: [u32; 4], direction: &Direction) -> ([u32; 4], u32) {
+    pub fn make_move(&self, grid: &[u32; 4], direction: &Direction) -> ([u32; 4], u32) {
         let (new_grid, score) = match direction {
             Direction::Left => self.move_grid_left(grid),
             Direction::Right => self.move_grid_right(grid),
             Direction::Up => self.move_grid_up(grid),
             Direction::Down => self.move_grid_down(grid),
-            Direction::None => return (grid, 0),
+            Direction::None => return (*grid, 0),
         };
         (new_grid, score)
     }
 
-    pub fn empty_list(&self, grid: [u32; 4]) -> Vec<(usize, usize)> {
+    pub fn empty_list(&self, grid: &[u32; 4]) -> Vec<(usize, usize)> {
         let mut empty = Vec::new();
         for i in 0..4 {
             for j in 0..4 {
@@ -289,7 +296,7 @@ impl FastGame {
 
     pub fn add_random_block(&self, grid: [u32; 4], rand: &Random) -> [u32;4] {
         // Adds a block of random value at a random place
-        let empty = self.empty_list(grid);
+        let empty = self.empty_list(&grid);
         if empty.len() == 0 {
             return grid;
         }

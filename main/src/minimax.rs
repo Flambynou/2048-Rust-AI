@@ -22,8 +22,8 @@ pub fn get_best_direction(game: &FastGame, grid: [u32; 4], search_depth: usize) 
     let mut tt = HashMap::new();
 
     // Try every possible direction
-    for direction in game.get_possible_directions(grid) {
-        let (new_grid, _) = game.make_move(grid, &direction);
+    for direction in game.get_possible_directions(&grid) {
+        let (new_grid, _) = game.make_move(&grid, &direction);
         let score = minimax(
             game,
             new_grid,
@@ -79,7 +79,7 @@ fn minimax(
     let original_beta = beta;
 
     // If node is final, return its evaluation
-    if depth == 0 || game.is_lost(grid) {
+    if depth == 0 || game.is_lost(&grid) {
         return evaluate(grid);
     }
 
@@ -89,8 +89,8 @@ fn minimax(
     // If node is player, playout all the potential moves
     if is_player {
         value = f32::NEG_INFINITY;
-        for direction in game.get_possible_directions(grid) {
-            let (new_grid, _score) = game.make_move(grid, &direction);
+        for direction in game.get_possible_directions(&grid) {
+            let (new_grid, _score) = game.make_move(&grid, &direction);
             value = value.max(minimax(game, new_grid, depth - 1, false, alpha, beta, tt));
             alpha = alpha.max(value);
             if alpha >= beta {
@@ -102,7 +102,7 @@ fn minimax(
     // If the node is a block spawn, playout all the possible spawns
     else {
         value = f32::INFINITY;
-        for empty in game.empty_list(grid) {
+        for empty in game.empty_list(&grid) {
             // Spawn a 2
             let new_grid = game.place_block(grid, empty, 1);
             value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt));
