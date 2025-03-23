@@ -20,6 +20,7 @@ fn main() {
     println!("2. Train");
     println!("3. AI");
     println!("4. Minimax");
+    println!("5. Play fast");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
     let line = line.trim();
@@ -28,6 +29,7 @@ fn main() {
         "2" => train(),
         "3" => ai(),
         "4" => use_minimax(),
+        "5" => playfast(),
         _ => println!("Invalid mode"),
     }
 }
@@ -168,7 +170,7 @@ fn ai() {
 
 fn use_minimax() {
     // Minimax depth :
-    let depth = 1;
+    let depth = 8;
     // Generate an empty grid
     let mut game_state = [0u32;4];
     // Compute the lookup table
@@ -212,9 +214,43 @@ fn use_minimax() {
         //renderer::render(fast.to_flat_array(game_state));
         println!("Score: {}", score);
     }
-
 }
 
+
+fn playfast() {
+    // Initialize the LUT
+    let fast = fastgame::FastGame::new();
+    let rand = Random::from_seed(Seed::unsafe_new(SEED));
+    let mut game_state = [0u32;4];
+    game_state = fast.add_random_block(game_state, &rand);
+    game_state = fast.add_random_block(game_state, &rand);
+    renderer::render(fast.to_flat_array(game_state));
+    let mut total_score = 0;
+    loop {
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).unwrap();
+        let line = line.trim();
+        if line == "" {
+            continue;
+        }
+        let direction: game::Direction = match line {
+            "z" => game::Direction::Up,
+            "s" => game::Direction::Down,
+            "q" => game::Direction::Left,
+            "d" => game::Direction::Right,
+            _ => continue,
+        };
+        let (game_state,score) = fast.play_move(game_state, direction, &rand);
+        if fast.is_lost(&game_state) {
+            renderer::render(fast.to_flat_array(game_state));
+            println!("You lost !");
+            break;
+        }
+        renderer::render(fast.to_flat_array(game_state));
+        total_score += score;
+        println!("Score: {}", total_score);
+    }
+}
 
 
 /*fn do_a_barrel_roll(mut game_state: [u8; GRID_SIZE*GRID_SIZE], rand: &Random) {

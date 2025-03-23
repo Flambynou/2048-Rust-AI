@@ -315,4 +315,16 @@ impl FastGame {
         }
         return flat;
     }
+
+    pub fn play_move(&self, mut grid: [u32; 4], direction: Direction, rand: &Random) -> ([u32; 4],u32) {
+        if direction == Direction::None {
+            return (grid,0);
+        }
+        if self.get_possible_directions(&grid).contains(&direction) {
+            let (new_grid, score) = self.make_move(&grid, &direction);
+            grid = self.add_random_block(new_grid, rand);
+        return (grid,score);
+        }
+        return (grid,0);
+    }
 }

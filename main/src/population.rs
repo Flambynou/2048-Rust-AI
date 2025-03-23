@@ -207,7 +207,7 @@ impl Agent {
             / RUNS_PER_AGENT as f32)
             .exp();
     }
-    pub fn get_worst(self: &mut Self) -> f32 {
+    pub fn _get_worst(self: &mut Self) -> f32 {
         // Get the minimum score
         return *self
             .fitness
