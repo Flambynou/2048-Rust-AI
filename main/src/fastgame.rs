@@ -65,11 +65,11 @@ impl FastGame {
     fn compute_move_left(row: u32) -> Result {
         let mut target: u32 = 0;
         let mut score: u32 = 0;
-        let mut new_row: u32 = 0;
+        let mut new_row = row;
         let mut i = 1;
 
         while i < 4 {
-            let value: u32 = ((row >> (i * 5)) & 0x1F) as u32;
+            let value: u32 = ((new_row >> (i * 5)) & 0x1F) as u32;
             let target_value: u32 = ((new_row >> (target * 5)) & 0x1F) as u32;
             if value != 0 {
                 if (new_row >> (target * 5)) & 0x1F == 0 { // Move the value to the target if target is 0
@@ -93,7 +93,7 @@ impl FastGame {
         }
 
         Result {
-            new_state: new_row,
+            new_state: row,
             changed: new_row != row as u32,
             score: score,
         }
