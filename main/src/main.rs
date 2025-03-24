@@ -170,7 +170,7 @@ fn ai() {
 
 fn use_minimax() {
     // Minimax depth :
-    let depth = 8;
+    let depth = 12;
     // Generate an empty grid
     let mut game_state = [0u32;4];
     // Compute the lookup table
@@ -183,8 +183,8 @@ fn use_minimax() {
     // Main loop: print, compute best move, play
     loop {
         // Wait for player to see the move
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
+        /*let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();*/
         // Get the best direction, play it, and add a random block
         println!("Computing best move...");
         let best_direction = minimax::get_best_direction(&fast, game_state, depth);
@@ -240,7 +240,8 @@ fn playfast() {
             "d" => game::Direction::Right,
             _ => continue,
         };
-        let (game_state,score) = fast.play_move(game_state, direction, &rand);
+        let (new_game_state,score) = fast.play_move(game_state, direction, &rand);
+        game_state = new_game_state;
         if fast.is_lost(&game_state) {
             renderer::render(fast.to_flat_array(game_state));
             println!("You lost !");
