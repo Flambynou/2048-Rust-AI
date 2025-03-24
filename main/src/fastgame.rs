@@ -66,22 +66,27 @@ impl FastGame {
         let mut target: u32 = 0;
         let mut score: u32 = 0;
         let mut new_row: u32 = 0;
-        let mut i = 0;
+        let mut i = 1;
 
         while i < 4 {
-            let value: u32 = ((row >> (i * 5)) & 0x1F) as u32; // 5 bits mask (0x1F)
+            let value: u32 = ((row >> (i * 5)) & 0x1F) as u32;
+            let target_value: u32 = ((new_row >> (target * 5)) & 0x1F) as u32;
             if value != 0 {
-                if (new_row >> (target * 5)) & 0x1F == 0 {
+                if (new_row >> (target * 5)) & 0x1F == 0 { // Move the value to the target if target is 0
                     new_row |= value << (target * 5);
-                } else if (new_row >> (target * 5)) & 0x1F == value {
-                    new_row &= !(0x1F << (target * 5)); // Clear 5 bits
-                    new_row |= (value + 1) << (target * 5);
-                    score += 1 << (value + 1);
+                    new_row &= !(0x1F << (i * 5));
+                } else if target_value == value { // If the target is the same as value, increase the target by 1 and erase the value
+                    new_row += 1 << (target * 5);
+                    score += 1 << (target_value + 1);
+                    new_row &= !(0x1F << (i * 5));
                     target += 1;
-                } else {
+                } else { // If both the target and the value are non-zero but different, move the value to the tile next to the target if it is not already on it
                     target += 1;
-                    new_row &= !(0x1F << (target * 5));
-                    new_row |= value << (target * 5);
+                    if target != i {
+                        new_row &= !(0x1F << (target * 5));
+                        new_row |= value << (target * 5);
+                        new_row &= !(0x1F << (i * 5));
+                    }
                 }
             }
             i += 1;
