@@ -63,37 +63,36 @@ impl FastGame {
     }
 
     fn compute_move_left(row: u32) -> Result {
-        let mut target: u32 = 0;
+        let mut target: usize = 0;
         let mut score: u32 = 0;
-        let mut new_row = row;
-        let mut i = 1;
+        let mut row_array = [(row >> 15) & 0x1F, (row >> 10) & 0x1F, (row >> 5) & 0x1F, row & 0x1F];
 
-        while i < 4 {
-            let value: u32 = ((new_row >> (i * 5)) & 0x1F) as u32;
-            let target_value: u32 = ((new_row >> (target * 5)) & 0x1F) as u32;
-            if value != 0 {
-                if (new_row >> (target * 5)) & 0x1F == 0 { // Move the value to the target if target is 0
-                    new_row |= value << (target * 5);
-                    new_row &= !(0x1F << (i * 5));
-                } else if target_value == value { // If the target is the same as value, increase the target by 1 and erase the value
-                    new_row += 1 << (target * 5);
-                    score += 1 << (target_value + 1);
-                    new_row &= !(0x1F << (i * 5));
-                    target += 1;
-                } else { // If both the target and the value are non-zero but different, move the value to the tile next to the target if it is not already on it
-                    target += 1;
-                    if target != i {
-                        new_row &= !(0x1F << (target * 5));
-                        new_row |= value << (target * 5);
-                        new_row &= !(0x1F << (i * 5));
-                    }
+        for i in 1..4 {
+            if row_array[i] == 0 {
+                continue;
+            }
+            if row_array[target] == 0 {
+                row_array[target] = row_array[i];
+                row_array[i] = 0;
+                continue;
+            }
+            if row_array[target] == row_array[i] {
+                row_array[target] += 1;
+                score += 1 << row_array[target];
+                row_array[i] = 0;
+                target += 1;
+            } else {
+                target += 1;
+                if target != i {
+                    row_array[target] = row_array[i];
+                    row_array[i] = 0;
                 }
             }
-            i += 1;
         }
+        let new_row:u32 = (row_array[0] << 15) | (row_array[1] << 10) | (row_array[2] << 5) | row_array[3];
 
         Result {
-            new_state: row,
+            new_state: new_row,
             changed: new_row != row as u32,
             score: score,
         }
