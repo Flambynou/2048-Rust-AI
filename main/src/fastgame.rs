@@ -4,8 +4,8 @@
 use seeded_random::Random;
 use crate::game::Direction;
 
-const MAX_BLOCK_EXPONENT: usize = 17;
-const TABLE_SIZE: usize = (MAX_BLOCK_EXPONENT<<15) + (MAX_BLOCK_EXPONENT<<10) + (MAX_BLOCK_EXPONENT<<5) + (MAX_BLOCK_EXPONENT) + 1;
+const MAX_BLOCK_EXPONENT: u32 = 17;
+const TABLE_SIZE: u32 = (MAX_BLOCK_EXPONENT<<15) + (MAX_BLOCK_EXPONENT<<10) + (MAX_BLOCK_EXPONENT<<5) + (MAX_BLOCK_EXPONENT) + 1;
 
 #[derive(Copy, Clone)]
 struct Result {
@@ -31,21 +31,21 @@ impl FastGame {
                 changed: false,
                 score: 0,
             }; 
-            TABLE_SIZE
+            TABLE_SIZE as usize
         ].into_boxed_slice();
-        let mut a = 0;
+        let mut a: u32 = 0;
 
         while a <= MAX_BLOCK_EXPONENT {
-            let mut b = 0;
+            let mut b: u32 = 0;
             while b <= MAX_BLOCK_EXPONENT {
-                let mut c = 0;
+                let mut c: u32 = 0;
                 while c <= MAX_BLOCK_EXPONENT {
-                    let mut d = 0;
+                    let mut d: u32 = 0;
                     while d <= MAX_BLOCK_EXPONENT {
-                        let row = ((a << 15) | (b << 10) | (c << 5) | d) as usize;
-                        if row < TABLE_SIZE {
+                        let row: u32 = (a << 15) | (b << 10) | (c << 5) | d;
+                        if row < TABLE_SIZE as u32 {
                             // Safety check in case we exceed table size
-                            table[row] = Self::compute_move_left(row);
+                            table[row as usize] = Self::compute_move_left(row);
                         }
                         else {
                             println!("Error: row {} out of bounds", row);
@@ -62,7 +62,7 @@ impl FastGame {
         table
     }
 
-    fn compute_move_left(row: usize) -> Result {
+    fn compute_move_left(row: u32) -> Result {
         let mut target: u32 = 0;
         let mut score: u32 = 0;
         let mut new_row: u32 = 0;
