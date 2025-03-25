@@ -12,10 +12,6 @@ const BORDER_PIXEL: &str = "\x1b[30m▒▒";
 const BLOCK_SIZE: usize = 1; // Real size in pixel : 3 + 2*BLOCK_SIZE
 
 pub fn render(game_state: [u8; GRID_SIZE * GRID_SIZE]) {
-    // Print empty lines to be able to see history
-    for _ in 0..50 {
-        println!();
-    }
     let mut data: Vec<String> = vec![];
 
     // Top border

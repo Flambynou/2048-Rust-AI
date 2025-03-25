@@ -170,7 +170,7 @@ fn ai() {
 
 fn use_minimax() {
     // Minimax depth :
-    let depth = 12;
+    let depth = 8;
     // Generate an empty grid
     let mut game_state = [0u32;4];
     // Compute the lookup table
@@ -180,29 +180,20 @@ fn use_minimax() {
     game_state = fast.add_random_block(game_state, &rand);
     game_state = fast.add_random_block(game_state, &rand);
     let mut score:usize = 0;
+    // Render the game
+    renderer::render(fast.to_flat_array(game_state));
     // Main loop: print, compute best move, play
     loop {
-        // Wait for player to see the move
-        /*let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();*/
         // Get the best direction, play it, and add a random block
-        println!("Computing best move...");
-        let best_direction = minimax::get_best_direction(&fast, game_state, depth);
+        let best_direction = minimax::get_best_direction(&fast, game_state, depth as usize);
         if best_direction == game::Direction::None {
             println!("No possible move !");
             break;
         }
-        println!("Best move : {:?}", best_direction);
         let (new_game_state, move_score) = fast.make_move(&game_state, &best_direction);
         score += move_score as usize;
         game_state = new_game_state;
-        renderer::render(fast.to_flat_array(game_state));
-        println!("Made move : {}", best_direction);
-        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
         game_state = fast.add_random_block(game_state, &rand);
-        renderer::render(fast.to_flat_array(game_state));
-        println!("Added random block");
-        println!("[{},{},{},{}]",game_state[0],game_state[1],game_state[2],game_state[3]);
         // Check for loss
         if fast.is_lost(&game_state) {
             renderer::render(fast.to_flat_array(game_state));
@@ -211,7 +202,7 @@ fn use_minimax() {
             break;
         }
         // Render the game and score
-        //renderer::render(fast.to_flat_array(game_state));
+        renderer::render(fast.to_flat_array(game_state));
         println!("Score: {}", score);
     }
 }
