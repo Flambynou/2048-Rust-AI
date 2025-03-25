@@ -170,7 +170,7 @@ fn ai() {
 
 fn use_minimax() {
     // Minimax depth :
-    let depth = 8;
+    let depth = 6;
     // Generate an empty grid
     let mut game_state = [0u32;4];
     // Compute the lookup table
@@ -185,7 +185,7 @@ fn use_minimax() {
     // Main loop: print, compute best move, play
     loop {
         // Get the best direction, play it, and add a random block
-        let best_direction = minimax::get_best_direction(&fast, game_state, depth as usize);
+        let best_direction = minimax::get_best_direction_expectimax(&fast, game_state, depth as usize);
         if best_direction == game::Direction::None {
             println!("No possible move !");
             break;

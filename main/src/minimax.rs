@@ -15,15 +15,35 @@ enum NodeType {
     Upperbound,
 }
 
-pub fn get_best_direction(game: &FastGame, grid: [u32; 4], search_depth: usize) -> game::Direction {
+pub fn get_best_direction_minimax(game: &FastGame, grid: [u32; 4], search_depth: usize) -> game::Direction {
     // Returns the direction with the best minimax evaluation
+    let best_direction = game.get_possible_directions(&grid)
+        .par_iter()
+        .map(|direction| {
+            // Create a thread-local transposition table for each parallel evaluation
+            let mut tt = HashMap::new();
+            let (new_grid, _) = game.make_move(&grid, &direction);
+            let score = minimax(
+                game,
+                new_grid,
+                search_depth,
+                false,
+                f32::NEG_INFINITY,
+                f32::INFINITY,
+                &mut tt,
+            );
+            (direction, score)
+        })
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .map(|(direction, _)| direction)
+        .unwrap_or(&game::Direction::None).clone();
+        return best_direction;
+}
 
-    let mut best_direction = game::Direction::None;
-    let mut _best_score = f32::NEG_INFINITY;
-    let mut _tt: HashMap<[u32;4],TTEntry> = HashMap::new();
 
-    // Try every possible direction
-    best_direction = game.get_possible_directions(&grid)
+pub fn get_best_direction_expectimax(game: &FastGame, grid: [u32; 4], search_depth: usize) -> game::Direction {
+    // Returns the direction with the best expectimax evaluation
+    let best_direction = game.get_possible_directions(&grid)
         .par_iter()
         .map(|direction| {
             // Create a thread-local transposition table for each parallel evaluation
@@ -45,14 +65,59 @@ pub fn get_best_direction(game: &FastGame, grid: [u32; 4], search_depth: usize) 
 }
 
 fn evaluate(game: &FastGame, grid: [u32; 4]) -> f32 {
-    let mut total = 0.0;
-    let flat_array = game.to_flat_array(grid);
-    for value in flat_array {
-        if value != 0 {
-            total += ((1 << value) as f32) * (value as f32);
-        }
-    }
-    return total;
+    let flat_grid = game.to_flat_array(grid);
+
+    let big_values_infl:f32 = flat_grid.iter().map(|&value| {(2.0_f32).powf(value as f32)}).sum();
+
+    // Monotonicity: measure how aligned tiles are in a single direction
+    let _monotonicity_horizontal = 
+        (0..4).map(|row| {
+            let start = row * 4;
+            let row_values = &flat_grid[start..start+4];
+            row_values.windows(2)
+                .map(|w| (w[1] as f32 - w[0] as f32).abs())
+                .sum::<f32>()
+        }).sum::<f32>();
+
+    let _monotonicity_vertical = 
+        (0..4).map(|col| {
+            let column_values = [
+                flat_grid[col],
+                flat_grid[col + 4],
+                flat_grid[col + 8],
+                flat_grid[col + 12]
+            ];
+            column_values.windows(2)
+                .map(|w| (w[1] as f32 - w[0] as f32).abs())
+                .sum::<f32>()
+        }).sum::<f32>();
+
+    // Smoothness: measure the difference between adjacent tiles
+    let smoothness_horizontal = 
+        (0..4).map(|row| {
+            let start = row * 4;
+            let row_values = &flat_grid[start..start+4];
+            row_values.windows(2)
+                .map(|w| (2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32).abs())
+                .sum::<f32>()
+        }).sum::<f32>();
+
+    let smoothness_vertical = 
+        (0..4).map(|col| {
+            let column_values = [
+                flat_grid[col],
+                flat_grid[col + 4],
+                flat_grid[col + 8],
+                flat_grid[col + 12]
+            ];
+            column_values.windows(2)
+                .map(|w| (2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32).abs())
+                .sum::<f32>()
+        }).sum::<f32>();
+
+    // Empty cells bonus
+    let empty_cells_bonus = game.empty_list(&grid).len() as f32 * 10.0;
+    return big_values_infl + empty_cells_bonus + smoothness_vertical - smoothness_horizontal;
 }
 
 fn minimax(
@@ -63,7 +128,6 @@ fn minimax(
     mut alpha: f32,
     mut beta: f32,
     tt: &mut HashMap<[u32; 4], TTEntry>,
-    branch_score: usize,
 ) -> f32 {
     // Returns the minimax value of the board with a grid that has been moved in the direction but no block added
 
@@ -86,10 +150,10 @@ fn minimax(
 
     // If node is final, return its evaluation
     if game.is_lost(&grid){
-        return branch_score as f32;
+        return evaluate(game, grid) + f32::NEG_INFINITY;
     }
     if depth == 0 {
-        return branch_score as f32 * (game.empty_list(&grid).len() as f32 + 1.0).powf(4.0);
+        return evaluate(game, grid);
     }
 
     let mut value;
@@ -99,8 +163,8 @@ fn minimax(
     if is_player {
         value = f32::NEG_INFINITY;
         for direction in game.get_possible_directions(&grid) {
-            let (new_grid, score) = game.make_move(&grid, &direction);
-            value = value.max(minimax(game, new_grid, depth - 1, false, alpha, beta, tt, branch_score + score as usize));
+            let (new_grid, _score) = game.make_move(&grid, &direction);
+            value = value.max(minimax(game, new_grid, depth - 1, false, alpha, beta, tt));
             alpha = alpha.max(value);
             if alpha >= beta {
                 // Beta cutoff
@@ -114,7 +178,7 @@ fn minimax(
         for empty in game.empty_list(&grid) {
             // Spawn a 2
             let new_grid = game.place_block(grid, empty, 1);
-            value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt, branch_score));
+            value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt));
             beta = beta.min(value);
             if beta <= alpha {
                 // Alpha cutoff
@@ -122,7 +186,7 @@ fn minimax(
             }
             // Spawn a 4
             let new_grid = game.place_block(grid, empty, 2);
-            value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt, branch_score));
+            value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt));
             let beta = beta.min(value);
             if beta <= alpha {
                 // Alpha cutoff
