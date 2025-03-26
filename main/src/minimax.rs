@@ -60,6 +60,7 @@ pub fn get_best_direction_expectimax(game: &FastGame, grid: [u32; 4], search_dep
                 search_depth,
                 false,
                 &mut tt,
+                0,
             );
             (direction, score)
         })
@@ -75,7 +76,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
     let big_values_infl:f32 = flat_grid.iter().map(|&value| {(1 << value) as f32}).sum();
 
     // Monotonicity: measure how aligned tiles are in a single direction
-    let monotonicity_horizontal = 
+    let _monotonicity_horizontal = 
         (0..4).map(|row| {
             let start = row * 4;
             let row_values = &flat_grid[start..start+4];
@@ -84,7 +85,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
                 .sum::<f32>()
         }).sum::<f32>();
 
-    let monotonicity_vertical = 
+    let _monotonicity_vertical = 
         (0..4).map(|col| {
             let column_values = [
                 flat_grid[col],
@@ -223,6 +224,7 @@ fn expectimax(
     depth: usize,
     is_player: bool,
     tt: &mut HashMap<[u32; 4], TTEntryExpecti>,
+    branch_score: u32,
 ) -> f32 {
     if let Some(entry) = tt.get(&grid) {
         if entry.depth >= depth {    
@@ -232,10 +234,10 @@ fn expectimax(
 
 
     if game.is_lost(&grid) {
-        return 0.0;
+        return -1000.0;
     }
     if depth <= 0 {
-        return evaluate(grid);
+        return evaluate(grid) + branch_score as f32;
     }
     let value:f32;
     if is_player {
@@ -243,8 +245,8 @@ fn expectimax(
         value = game.get_possible_directions(&grid)
             .iter()  // Use Rayon's parallel iterator
             .map(|direction| {
-                let (new_grid, _score) = game.make_move(&grid, &direction);
-                expectimax(game, new_grid, depth - 1, false, tt)
+                let (new_grid, score) = game.make_move(&grid, &direction);
+                expectimax(game, new_grid, depth - 1, false, tt, branch_score + score)
             })
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap()
@@ -256,9 +258,9 @@ fn expectimax(
         value = empty_cells.iter()
             .flat_map(|&empty| [
                 // Probability of 2 spawn (90%)
-                expectimax(game, game.place_block(grid, empty, 1), depth - 1, true, tt) * 0.9,
+                expectimax(game, game.place_block(grid, empty, 1), depth - 1, true, tt, branch_score) * 0.9,
                 // Probability of 4 spawn (10%)
-                expectimax(game, game.place_block(grid, empty, 2), depth - 1, true, tt) * 0.1
+                expectimax(game, game.place_block(grid, empty, 2), depth - 1, true, tt, branch_score) * 0.1
             ])
             .sum::<f32>() / (total_cells * 2) as f32
     }
