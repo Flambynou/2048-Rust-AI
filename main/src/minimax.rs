@@ -64,8 +64,8 @@ pub fn get_best_direction_expectimax(game: &FastGame, grid: [u32; 4], search_dep
         return best_direction;
 }
 
-fn evaluate(game: &FastGame, grid: [u32; 4]) -> f32 {
-    let flat_grid = game.to_flat_array(grid);
+fn evaluate(grid: [u32; 4]) -> f32 {
+    let flat_grid = FastGame::to_flat_array(grid);
 
     let big_values_infl:f32 = flat_grid.iter().map(|&value| {(2.0_f32).powf(value as f32)}).sum();
 
@@ -116,8 +116,8 @@ fn evaluate(game: &FastGame, grid: [u32; 4]) -> f32 {
         }).sum::<f32>();
 
     // Empty cells bonus
-    let empty_cells_bonus = game.empty_list(&grid).len() as f32 * 10.0;
-    return big_values_infl + empty_cells_bonus + smoothness_vertical - smoothness_horizontal;
+    let empty_cells_bonus = FastGame::empty_list(&grid).len() as f32 * 10.0;
+    return big_values_infl + empty_cells_bonus - smoothness_vertical - smoothness_horizontal;
 }
 
 fn minimax(
@@ -150,10 +150,10 @@ fn minimax(
 
     // If node is final, return its evaluation
     if game.is_lost(&grid){
-        return evaluate(game, grid) + f32::NEG_INFINITY;
+        return evaluate(grid) + f32::NEG_INFINITY;
     }
     if depth == 0 {
-        return evaluate(game, grid);
+        return evaluate(grid);
     }
 
     let mut value;
@@ -175,7 +175,7 @@ fn minimax(
     // If the node is a block spawn, playout all the possible spawns
     else {
         value = f32::INFINITY;
-        for empty in game.empty_list(&grid) {
+        for empty in FastGame::empty_list(&grid) {
             // Spawn a 2
             let new_grid = game.place_block(grid, empty, 1);
             value = value.min(minimax(game, new_grid, depth - 1, true, alpha, beta, tt));
@@ -227,7 +227,7 @@ fn expectimax(
         return f32::NEG_INFINITY;
     }
     if depth <= 0 {
-        return evaluate(game, grid);
+        return evaluate(grid);
     }
 
     if is_player {
@@ -242,7 +242,7 @@ fn expectimax(
             .unwrap_or(f32::NEG_INFINITY)
     } else {
         // Block spawn turn: calculate expected value
-        let empty_cells = game.empty_list(&grid);
+        let empty_cells = FastGame::empty_list(&grid);
         let total_cells = empty_cells.len();
         
         empty_cells.iter()

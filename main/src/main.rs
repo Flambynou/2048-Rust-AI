@@ -5,6 +5,7 @@ mod neural_network;
 mod population;
 mod renderer;
 
+use fastgame::FastGame;
 use seeded_random::{Random, Seed};
 use std::path::Path;
 const GRID_SIZE: usize = 4;
@@ -13,23 +14,29 @@ const POPULATION_SIZE: usize = 2000;
 
 const SEED: u64 = 0;
 
+
+const MINIMAX_DEPTH: usize = 12;
+const EXPECTIMAX_DEPTH: usize = 6;
+
 fn main() {
     // Ask user for playing / training / ai mode
     println!("Choose a mode :");
     println!("1. Play");
-    println!("2. Train");
-    println!("3. AI");
-    println!("4. Minimax");
-    println!("5. Play fast");
+    println!("2. Play fast");
+    println!("3. Train");
+    println!("4. AI");
+    println!("5. Minimax");
+    println!("6. Expectimax");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
     let line = line.trim();
     match line {
         "1" => play(),
-        "2" => train(),
-        "3" => ai(),
-        "4" => use_minimax(),
-        "5" => playfast(),
+        "2" => playfast(),
+        "3" => train(),
+        "4" => ai(),
+        "5" => use_mini_expecti_max(true),
+        "6" => use_mini_expecti_max(false),
         _ => println!("Invalid mode"),
     }
 }
@@ -168,9 +175,7 @@ fn ai() {
     }
 }
 
-fn use_minimax() {
-    // Minimax depth :
-    let depth = 6;
+fn use_mini_expecti_max(mini: bool) {
     // Generate an empty grid
     let mut game_state = [0u32;4];
     // Compute the lookup table
@@ -181,11 +186,16 @@ fn use_minimax() {
     game_state = fast.add_random_block(game_state, &rand);
     let mut score:usize = 0;
     // Render the game
-    renderer::render(fast.to_flat_array(game_state));
+    renderer::render(FastGame::to_flat_array(game_state));
     // Main loop: print, compute best move, play
     loop {
         // Get the best direction, play it, and add a random block
-        let best_direction = minimax::get_best_direction_expectimax(&fast, game_state, depth as usize);
+        let best_direction;
+        if mini {
+            best_direction = minimax::get_best_direction_minimax(&fast, game_state, MINIMAX_DEPTH);
+        } else {
+            best_direction = minimax::get_best_direction_expectimax(&fast, game_state, EXPECTIMAX_DEPTH);
+        }
         if best_direction == game::Direction::None {
             println!("No possible move !");
             break;
@@ -196,13 +206,13 @@ fn use_minimax() {
         game_state = fast.add_random_block(game_state, &rand);
         // Check for loss
         if fast.is_lost(&game_state) {
-            renderer::render(fast.to_flat_array(game_state));
+            renderer::render(FastGame::to_flat_array(game_state));
             println!("Final score : {}",score);
             println!("You lost !");
             break;
         }
         // Render the game and score
-        renderer::render(fast.to_flat_array(game_state));
+        renderer::render(FastGame::to_flat_array(game_state));
         println!("Score: {}", score);
     }
 }
@@ -215,7 +225,7 @@ fn playfast() {
     let mut game_state = [0u32;4];
     game_state = fast.add_random_block(game_state, &rand);
     game_state = fast.add_random_block(game_state, &rand);
-    renderer::render(fast.to_flat_array(game_state));
+    renderer::render(FastGame::to_flat_array(game_state));
     let mut total_score = 0;
     loop {
         let mut line = String::new();
@@ -234,11 +244,11 @@ fn playfast() {
         let (new_game_state,score) = fast.play_move(game_state, direction, &rand);
         game_state = new_game_state;
         if fast.is_lost(&game_state) {
-            renderer::render(fast.to_flat_array(game_state));
+            renderer::render(FastGame::to_flat_array(game_state));
             println!("You lost !");
             break;
         }
-        renderer::render(fast.to_flat_array(game_state));
+        renderer::render(FastGame::to_flat_array(game_state));
         total_score += score;
         println!("Score: {}", total_score);
     }

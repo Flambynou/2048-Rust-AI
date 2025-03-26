@@ -280,7 +280,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    pub fn empty_list(&self, grid: &[u32; 4]) -> Vec<(usize, usize)> {
+    pub fn empty_list(grid: &[u32; 4]) -> Vec<(usize, usize)> {
         let mut empty = Vec::new();
         for i in 0..4 {
             for j in 0..4 {
@@ -300,7 +300,7 @@ impl FastGame {
 
     pub fn add_random_block(&self, grid: [u32; 4], rand: &Random) -> [u32;4] {
         // Adds a block of random value at a random place
-        let empty = self.empty_list(&grid);
+        let empty = FastGame::empty_list(&grid);
         if empty.len() == 0 {
             return grid;
         }
@@ -310,7 +310,7 @@ impl FastGame {
         return self.place_block(grid, pos, value as u32);
     }
 
-    pub fn to_flat_array(&self, grid: [u32;4]) -> [u8; 16] {
+    pub fn to_flat_array(grid: [u32;4]) -> [u8; 16] {
         let mut flat = [0; 16];
         for i in 0..4 {
             for j in 0..4 {
