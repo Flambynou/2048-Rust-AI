@@ -103,7 +103,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
             let start = row * 4;
             let row_values = &flat_grid[start..start+4];
             row_values.windows(2)
-                .map(|w| (2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32).abs())
+                .map(|w| ((2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32)).abs())
                 .sum::<f32>()
         }).sum::<f32>();
 
@@ -116,13 +116,16 @@ fn evaluate(grid: [u32; 4]) -> f32 {
                 flat_grid[col + 12]
             ];
             column_values.windows(2)
-                .map(|w| (2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32).abs())
+                .map(|w| ((2.0_f32).powf(w[0] as f32) - (2.0_f32).powf(w[1] as f32)).abs())
                 .sum::<f32>()
         }).sum::<f32>();
 
     // Empty cells bonus
-    let empty_cells_bonus = FastGame::empty_list(&grid).len() as f32 * 10.0;
-    return empty_cells_bonus + big_values_infl - smoothness_vertical - smoothness_horizontal;
+    let empty_cells_bonus = FastGame::empty_list(&grid).len() as f32;
+    return 10.0*empty_cells_bonus
+           + 10.0*big_values_infl
+           - 1.0*smoothness_vertical
+           - 1.0*smoothness_horizontal;
 }
 
 fn minimax(
@@ -229,7 +232,7 @@ fn expectimax(
 
 
     if game.is_lost(&grid) {
-        return f32::NEG_INFINITY;
+        return 0.0;
     }
     if depth <= 0 {
         return evaluate(grid);

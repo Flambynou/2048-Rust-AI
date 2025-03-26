@@ -12,11 +12,11 @@ const GRID_SIZE: usize = 4;
 
 const POPULATION_SIZE: usize = 2000;
 
-const SEED: u64 = 0;
+const SEED: u64 = 10;
 
 
-const MINIMAX_DEPTH: usize = 12;
-const EXPECTIMAX_DEPTH: usize = 7;
+const MINIMAX_DEPTH: usize = 15;
+const EXPECTIMAX_DEPTH: usize = 8;
 
 fn main() {
     // Ask user for playing / training / ai mode
