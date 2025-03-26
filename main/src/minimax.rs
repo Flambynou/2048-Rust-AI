@@ -75,7 +75,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
     let big_values_infl:f32 = flat_grid.iter().map(|&value| {(1 << value) as f32}).sum();
 
     // Monotonicity: measure how aligned tiles are in a single direction
-    let _monotonicity_horizontal = 
+    let monotonicity_horizontal = 
         (0..4).map(|row| {
             let start = row * 4;
             let row_values = &flat_grid[start..start+4];
@@ -84,7 +84,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
                 .sum::<f32>()
         }).sum::<f32>();
 
-    let _monotonicity_vertical = 
+    let monotonicity_vertical = 
         (0..4).map(|col| {
             let column_values = [
                 flat_grid[col],
@@ -247,7 +247,7 @@ fn expectimax(
                 expectimax(game, new_grid, depth - 1, false, tt)
             })
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(f32::NEG_INFINITY)
+            .unwrap()
     } else {
         // Block spawn turn: calculate expected value
         let empty_cells = FastGame::empty_list(&grid);
