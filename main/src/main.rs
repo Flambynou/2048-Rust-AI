@@ -16,7 +16,7 @@ const SEED: u64 = 0;
 
 
 const MINIMAX_DEPTH: usize = 12;
-const EXPECTIMAX_DEPTH: usize = 7;
+const EXPECTIMAX_DEPTH: usize = 6;
 
 fn main() {
     // Ask user for playing / training / ai mode
