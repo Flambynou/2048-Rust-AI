@@ -3,10 +3,15 @@ use rayon::prelude::*;
 use crate::game;
 use std::collections::HashMap;
 
-struct TTEntry {
-    depth: usize,
-    value: f32,
-    flag: NodeType,
+struct TTEntryMini {
+        depth: usize,
+        value: f32,
+        flag: NodeType,
+}
+
+struct TTEntryExpecti {
+    depth : usize,
+    value : f32,
 }
 
 enum NodeType {
@@ -67,7 +72,7 @@ pub fn get_best_direction_expectimax(game: &FastGame, grid: [u32; 4], search_dep
 fn evaluate(grid: [u32; 4]) -> f32 {
     let flat_grid = FastGame::to_flat_array(grid);
 
-    let big_values_infl:f32 = flat_grid.iter().map(|&value| {(2.0_f32).powf(value as f32)}).sum();
+    let big_values_infl:f32 = flat_grid.iter().map(|&value| {(1 << value) as f32}).sum();
 
     // Monotonicity: measure how aligned tiles are in a single direction
     let _monotonicity_horizontal = 
@@ -117,7 +122,7 @@ fn evaluate(grid: [u32; 4]) -> f32 {
 
     // Empty cells bonus
     let empty_cells_bonus = FastGame::empty_list(&grid).len() as f32 * 10.0;
-    return big_values_infl + empty_cells_bonus - smoothness_vertical - smoothness_horizontal;
+    return empty_cells_bonus + big_values_infl - smoothness_vertical - smoothness_horizontal;
 }
 
 fn minimax(
@@ -127,7 +132,7 @@ fn minimax(
     is_player: bool,
     mut alpha: f32,
     mut beta: f32,
-    tt: &mut HashMap<[u32; 4], TTEntry>,
+    tt: &mut HashMap<[u32; 4], TTEntryMini>,
 ) -> f32 {
     // Returns the minimax value of the board with a grid that has been moved in the direction but no block added
 
@@ -204,7 +209,7 @@ fn minimax(
         flag = NodeType::Exact;
     }
 
-    tt.insert(grid, TTEntry { depth, value, flag });
+    tt.insert(grid, TTEntryMini { depth, value, flag });
 
     return value;
 }
@@ -214,7 +219,7 @@ fn expectimax(
     grid: [u32; 4],
     depth: usize,
     is_player: bool,
-    tt: &mut HashMap<[u32; 4], TTEntry>,
+    tt: &mut HashMap<[u32; 4], TTEntryExpecti>,
 ) -> f32 {
     if let Some(entry) = tt.get(&grid) {
         if entry.depth >= depth {    
@@ -229,10 +234,10 @@ fn expectimax(
     if depth <= 0 {
         return evaluate(grid);
     }
-
+    let value:f32;
     if is_player {
         // Player's turn: maximize over possible moves
-        game.get_possible_directions(&grid)
+        value = game.get_possible_directions(&grid)
             .iter()  // Use Rayon's parallel iterator
             .map(|direction| {
                 let (new_grid, _score) = game.make_move(&grid, &direction);
@@ -245,7 +250,7 @@ fn expectimax(
         let empty_cells = FastGame::empty_list(&grid);
         let total_cells = empty_cells.len();
         
-        empty_cells.iter()
+        value = empty_cells.iter()
             .flat_map(|&empty| [
                 // Probability of 2 spawn (90%)
                 expectimax(game, game.place_block(grid, empty, 1), depth - 1, true, tt) * 0.9,
@@ -254,4 +259,6 @@ fn expectimax(
             ])
             .sum::<f32>() / (total_cells * 2) as f32
     }
+    tt.insert(grid, TTEntryExpecti {depth, value});
+    return value;
 }
