@@ -1,8 +1,9 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt;
-use crate::GRID_SIZE;
 use seeded_random::Random;
+
+const GRID_SIZE: usize = 4;
 
 #[derive(PartialEq)]
 #[derive(Debug)]

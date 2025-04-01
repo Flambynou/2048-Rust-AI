@@ -2,7 +2,7 @@
 
 // Computing a lookup table of every possible left row move
 use seeded_random::Random;
-use crate::game::Direction;
+use crate::game;
 
 const MAX_BLOCK_EXPONENT: u32 = 17;
 const TABLE_SIZE: u32 = (MAX_BLOCK_EXPONENT<<15) + (MAX_BLOCK_EXPONENT<<10) + (MAX_BLOCK_EXPONENT<<5) + (MAX_BLOCK_EXPONENT) + 1;
@@ -137,7 +137,7 @@ impl FastGame {
         )
     }
 
-    fn move_grid_left(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
+    pub fn move_grid_left(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -150,7 +150,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn move_grid_right(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
+    pub fn move_grid_right(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -179,7 +179,7 @@ impl FastGame {
         }
     }
 
-    fn move_grid_up(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
+    pub fn move_grid_up(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -193,7 +193,7 @@ impl FastGame {
         (new_grid, score)
     }
 
-    fn move_grid_down(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
+    pub fn move_grid_down(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
 
@@ -252,30 +252,30 @@ impl FastGame {
             || self.can_go_down(grid))
     }
 
-    pub fn get_possible_directions(&self, grid: &[u32; 4]) -> Vec<Direction> {
+    pub fn get_possible_directions(&self, grid: &[u32; 4]) -> Vec<game::Direction> {
         let mut directions = Vec::new();
         if self.can_go_left(grid) {
-            directions.push(Direction::Left);
+            directions.push(game::Direction::Left);
         }
         if self.can_go_right(grid) {
-            directions.push(Direction::Right);
+            directions.push(game::Direction::Right);
         }
         if self.can_go_up(grid) {
-            directions.push(Direction::Up);
+            directions.push(game::Direction::Up);
         }
         if self.can_go_down(grid) {
-            directions.push(Direction::Down);
+            directions.push(game::Direction::Down);
         }
         directions
     }
 
-    pub fn make_move(&self, grid: &[u32; 4], direction: &Direction) -> ([u32; 4], u32) {
+    pub fn make_move(&self, grid: &[u32; 4], direction: &game::Direction) -> ([u32; 4], u32) {
         let (new_grid, score) = match direction {
-            Direction::Left => self.move_grid_left(grid),
-            Direction::Right => self.move_grid_right(grid),
-            Direction::Up => self.move_grid_up(grid),
-            Direction::Down => self.move_grid_down(grid),
-            Direction::None => return (*grid, 0),
+            game::Direction::Left => self.move_grid_left(grid),
+            game::Direction::Right => self.move_grid_right(grid),
+            game::Direction::Up => self.move_grid_up(grid),
+            game::Direction::Down => self.move_grid_down(grid),
+            game::Direction::None => return (*grid, 0),
         };
         (new_grid, score)
     }
@@ -320,8 +320,8 @@ impl FastGame {
         return flat;
     }
 
-    pub fn play_move(&self, mut grid: [u32; 4], direction: Direction, rand: &Random) -> ([u32; 4],u32) {
-        if direction == Direction::None {
+    pub fn play_move(&self, mut grid: [u32; 4], direction: game::Direction, rand: &Random) -> ([u32; 4],u32) {
+        if direction == game::Direction::None {
             return (grid,0);
         }
         if self.get_possible_directions(&grid).contains(&direction) {
