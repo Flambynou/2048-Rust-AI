@@ -1,4 +1,4 @@
-#![feature(test)]
+/*#![feature(test)]
 
 extern crate test;
 use seeded_random::{Random, Seed};
@@ -33,4 +33,4 @@ mod tests {
         let grid = [1,0,0,0];
         b.iter(|| barrel_roll(&fast, grid, &random))
     }
-}
+}*/

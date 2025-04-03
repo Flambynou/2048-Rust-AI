@@ -4,6 +4,7 @@ mod minimax;
 mod neural_network;
 mod population;
 mod renderer;
+mod mcts;
 
 
 
@@ -29,6 +30,7 @@ fn main() {
     println!("4. AI");
     println!("5. Minimax");
     println!("6. Expectimax");
+    println!("7. Monte Carlo tree search");
     let mut line = String::new();
     std::io::stdin().read_line(&mut line).unwrap();
     let line = line.trim();
@@ -39,6 +41,7 @@ fn main() {
         "4" => ai(),
         "5" => use_mini_expecti_max(true),
         "6" => use_mini_expecti_max(false),
+        "7" => use_mtcs(),
         _ => println!("Invalid mode"),
     }
 }
@@ -254,6 +257,14 @@ fn playfast() {
         total_score += score;
         println!("Score: {}", total_score);
     }
+}
+
+
+fn use_mtcs(){
+    let fast = fastgame::FastGame::new();
+    let (end_state, score) = mcts::loop_policy(fast);
+    renderer::render(FastGame::to_flat_array(end_state));
+    println!("{}",score);
 }
 
 
