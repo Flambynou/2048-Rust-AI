@@ -262,9 +262,15 @@ fn playfast() {
 
 fn use_mtcs(){
     let fast = fastgame::FastGame::new();
-    let (end_state, score) = mcts::loop_policy(fast);
-    renderer::render(FastGame::to_flat_array(end_state));
-    println!("{}",score);
+    let rand = Random::from_seed(Seed::unsafe_new(SEED));
+    let mut game_state = [0;4];
+    game_state = fast.add_random_block(game_state, &rand);
+    game_state = fast.add_random_block(game_state, &rand);
+    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0);
+
+    let best_direction = mcts.get_best_direction(&fast, 1000);
+    let (new_game_state, _score) = fast.play_move(game_state, best_direction, &rand);
+    renderer::render(FastGame::to_flat_array(new_game_state));
 }
 
 
