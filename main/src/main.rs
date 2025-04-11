@@ -20,6 +20,10 @@ const SEED: u64 = 10;
 
 const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 6;
+// MCTS will search until either the time or iteration limit is reached
+// Time limit for MCTS simulation in seconds
+const MCTS_TIME_LIMIT: f32 = 10.0;
+const MCTS_ITERATION_LIMIT: usize = 100000;
 
 fn main() {
     // Ask user for playing / training / ai mode
@@ -41,7 +45,7 @@ fn main() {
         "4" => ai(),
         "5" => use_mini_expecti_max(true),
         "6" => use_mini_expecti_max(false),
-        "7" => use_mtcs(),
+        "7" => use_mcts(),
         _ => println!("Invalid mode"),
     }
 }
@@ -260,17 +264,31 @@ fn playfast() {
 }
 
 
-fn use_mtcs(){
+fn use_mcts(){
     let fast = fastgame::FastGame::new();
     let rand = Random::from_seed(Seed::unsafe_new(SEED));
     let mut game_state = [0;4];
     game_state = fast.add_random_block(game_state, &rand);
     game_state = fast.add_random_block(game_state, &rand);
-    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0);
-
-    let best_direction = mcts.get_best_direction(&fast, 1000);
-    let (new_game_state, _score) = fast.play_move(game_state, best_direction, &rand);
-    renderer::render(FastGame::to_flat_array(new_game_state));
+    let mut game_score = 0;
+    renderer::render(FastGame::to_flat_array(game_state));
+    println!("Score: {:?}", game_score);
+    loop {
+        let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, game_score);
+        let (best_direction,root_node) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
+        let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
+        game_score += move_score;
+        game_state = new_game_state;
+        if fast.is_lost(&game_state) {
+            renderer::render(FastGame::to_flat_array(game_state));
+            println!("Final score : {}", game_score);
+            println!("You lost !");
+            break;
+        }
+        renderer::render(FastGame::to_flat_array(game_state));
+        println!("Score: {:?}", game_score);
+        println!("Root node: {:?}", root_node);
+    }
 }
 
 
