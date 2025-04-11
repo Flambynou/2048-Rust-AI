@@ -3,8 +3,9 @@ use crate::game;
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::time::{Instant, Duration};
+use std::collections::HashSet;
 
-const EXPLORATION_CONSTANT:f32 = 5000.0;
+const EXPLORATION_CONSTANT:f32 = 1.4142;
 
 #[derive(Clone,Debug)]
 pub enum NodeType {
@@ -16,7 +17,7 @@ pub struct SpawnNode {
     game_state: [u32;4],
     score: u32,
     parent_index: Option<usize>,
-    children_indices: Vec<usize>,
+    children_indices_blockexponent_and_isexplored: Vec<(usize,u32,bool)>,
     move_made: game::Direction,
     visit_count: f32,
     total_value: f32,
@@ -30,10 +31,11 @@ pub struct MoveNode {
     children_indices: Vec<usize>,
     actions_left: Vec<game::Direction>,
     visit_count: f32,
+    is_terminal: bool,
 }
 
 
-fn move_imediate_score_policy(fast: &fastgame::FastGame, grid: [u32;4], score: u32) -> ([u32;4],u32) {
+fn _move_imediate_score_policy(fast: &fastgame::FastGame, grid: [u32;4], score: u32) -> ([u32;4],u32) {
 	if fast.is_lost(&grid) {
 		return (grid,score); 
 	}
@@ -74,6 +76,7 @@ impl MonteCarloTree {
             children_indices: Vec::new(),
             actions_left: fast.get_possible_directions(&rootstate),
             visit_count: 0.0,
+            is_terminal: fast.is_lost(&rootstate),
         });
         MonteCarloTree { node_vec: vec![Box::new(rootnode)]}
     }
@@ -81,33 +84,21 @@ impl MonteCarloTree {
     fn select_recursive(&mut self, node_index: usize, rng: &mut ThreadRng) -> usize {
         match self.node_vec[node_index].as_ref() {
             NodeType::Spawn(spawn_node) => {
-                if spawn_node.is_terminal || spawn_node.children_indices.is_empty() {
+                let mut random_child_vec = spawn_node.children_indices_blockexponent_and_isexplored.clone();
+                random_child_vec.retain(|(_, _, isexplored)| !isexplored);
+                if spawn_node.is_terminal || !random_child_vec.is_empty() {
                     return node_index;
                 }
-                // Choose a children at random, following the probabilities
-                let value_change_index = spawn_node.children_indices.len() / 2;
-                let two_probability = 1.0 / (value_change_index as f32 * 0.9);
-                let four_probability = 1.0 / (value_change_index as f32 * 0.1);
-                let mut prob_vec = vec![0.0];
-                for i in 0..(value_change_index * 2) {
-                    if i <= value_change_index {
-                        prob_vec.push(prob_vec[i] + two_probability);
-                    } else {
-                        prob_vec.push(prob_vec[i] + four_probability);
-                    }
-                }
-                let random_float = rng.random::<f32>();
-                let mut children_list_index = 0;
-                for (i, &prob) in prob_vec.iter().enumerate().skip(1) {
-                    if prob > random_float {
-                        children_list_index = i - 1;
-                        break;
-                    }
-                }
-                return self.select_recursive(spawn_node.children_indices[children_list_index], rng);
+                let exponents: HashSet<u32> = random_child_vec.iter().map(|(_, exp, _)| *exp).collect();
+                let random_exponent = if exponents.len() == 2 {
+                    if rng.random_bool(0.9) { 1 } else { 2 }
+                    } else {*exponents.iter().next().unwrap_or(&1)};
+                random_child_vec.retain(|(_, exponent, _)| *exponent == random_exponent);
+                let random_index = rng.random_range(0..random_child_vec.len());
+                return self.select_recursive(random_child_vec[random_index].0, rng);
             },
             NodeType::Move(move_node) => {
-                if !move_node.actions_left.is_empty() || move_node.children_indices.is_empty() {
+                if move_node.is_terminal || !move_node.actions_left.is_empty() || move_node.children_indices.is_empty() {
                     return node_index;
                 }
                 let mut best_children_list_index = 0;
@@ -129,16 +120,20 @@ impl MonteCarloTree {
         }
     }
 
-    fn expand(&mut self, fast: &fastgame::FastGame, node_index: usize) -> Vec<usize> {
-        let mut new_nodes_indices = Vec::new();
+    fn expand(&mut self, fast: &fastgame::FastGame, node_index: usize, rng: &mut ThreadRng) -> usize {
+        let mut chosen_node_index = node_index;
         let mut new_children = Vec::new();
         let node_vec_len = self.node_vec.len();
         match self.node_vec[node_index].as_mut() {
             NodeType::Spawn(ref mut spawn_node) => {
-                // Add all possible block spawns, with either 2 or 4 as value
-                for value in [2u32,4u32].iter() {
-                    for empty_space in fastgame::FastGame::empty_list(&spawn_node.game_state) {
-                        let new_state = fast.place_block(spawn_node.game_state, empty_space, *value);
+                // Add all possible block spawns, with either 1 or 2 as exponent;
+                for exponent in [1u32,2u32].iter() {
+                    let empty_space_vec = fastgame::FastGame::empty_list(&spawn_node.game_state);
+                    if empty_space_vec.is_empty() {
+                        spawn_node.is_terminal |= true;
+                    }
+                    for empty_space in empty_space_vec {
+                        let new_state = fast.place_block(spawn_node.game_state, empty_space, *exponent);
                         let new_child = NodeType::Move(MoveNode {
                             game_state: new_state,
                             score: spawn_node.score,
@@ -146,18 +141,23 @@ impl MonteCarloTree {
                             children_indices: Vec::new(),
                             actions_left: fast.get_possible_directions(&new_state),
                             visit_count: 0.0,
+                            is_terminal: fast.is_lost(&new_state),
                         });
                         new_children.push(new_child);
-                        let new_child_index = node_vec_len + spawn_node.children_indices.len();
-                        spawn_node.children_indices.push(new_child_index);
-                        new_nodes_indices.push(new_child_index);
+                        let new_child_index = node_vec_len + spawn_node.children_indices_blockexponent_and_isexplored.len();
+                        spawn_node.children_indices_blockexponent_and_isexplored.push((new_child_index,*exponent,false));
                     }
                 }
+                let mut random_child_vec = spawn_node.children_indices_blockexponent_and_isexplored.clone();
+                let random_exponent: u32 =  if rng.random::<f32>() < 0.9 {1} else {2};
+                random_child_vec.retain(|(_, exponent, _)| *exponent == random_exponent);
+                let random_index = rng.random_range(0..random_child_vec.len());
+                chosen_node_index = random_child_vec[random_index].0;
             },
             NodeType::Move(ref mut move_node) => {
                 // Add the child following the first direction in actions_left
                 if move_node.actions_left.is_empty() {
-                    return new_nodes_indices;
+                    return 0;
                 }
                 let direction_taken = move_node.actions_left[0].clone();
                 let (state, score) = fast.make_move(&move_node.game_state, &direction_taken);
@@ -165,7 +165,7 @@ impl MonteCarloTree {
                     game_state: state,
                     score: score,
                     parent_index: Some(node_index),
-                    children_indices: Vec::new(),
+                    children_indices_blockexponent_and_isexplored: Vec::new(),
                     move_made: direction_taken.clone(),
                     visit_count: 0.0,
                     total_value: 0.0,
@@ -173,28 +173,28 @@ impl MonteCarloTree {
                 });
                 new_children.push(new_child);
                 move_node.children_indices.push(node_vec_len);
-                new_nodes_indices.push(node_vec_len);
                 move_node.actions_left.retain(|direction| direction != &direction_taken);
+                chosen_node_index = node_vec_len;
             },
         }
         for new_child in new_children.iter() {
             self.node_vec.push(Box::new(new_child.clone()));
         }
-        return new_nodes_indices;
+        return chosen_node_index;
     }
 
-    fn imediate_score_rollout(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
+    fn _imediate_score_rollout(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
         let (mut game_state, current_score) = match node {
             NodeType::Spawn(spawn_node) => (spawn_node.game_state, spawn_node.score),
             NodeType::Move(move_node) => (move_node.game_state, move_node.score),
         };
         let mut score = current_score;
         while !fast.is_lost(&game_state) {
-            (game_state, score) = move_imediate_score_policy(&fast, game_state, score);
+            (game_state, score) = _move_imediate_score_policy(&fast, game_state, score);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let value = if rng.random::<f32>() > 0.9 {4} else {2};
+            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
-            game_state = fast.place_block(game_state, coords, value)
+            game_state = fast.place_block(game_state, coords, exponent)
         }
         return score as f32;
     }
@@ -208,12 +208,11 @@ impl MonteCarloTree {
         while !fast.is_lost(&game_state) {
             (game_state, score) = random_move_policy(&fast, game_state, score, rng);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let value = if rng.random::<f32>() > 0.9 {4} else {2};
+            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
-            game_state = fast.place_block(game_state, coords, value)
+            game_state = fast.place_block(game_state, coords, exponent)
         }
         return score as f32;
-        
     }
 
     fn backpropagate_recursive(&mut self, node_index: usize, score: f32) {
@@ -245,11 +244,12 @@ impl MonteCarloTree {
         let mut iteration_count = 0;
         while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
             let selected_node_index = self.select_recursive(0, &mut rng);
-            let new_nodes_indices = self.expand(&fast, selected_node_index);
-            for new_node_index in new_nodes_indices.iter() {
-                let rollout_score = Self::random_rollout(&fast, self.node_vec[*new_node_index].as_mut(), &mut rng);
-                self.backpropagate_recursive(*new_node_index, rollout_score);
+            let chosen_node_index = self.expand(&fast, selected_node_index, &mut rng);
+            if chosen_node_index != 0 {
+                let rollout_score = Self::random_rollout(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
+                self.backpropagate_recursive(chosen_node_index, rollout_score);
             }
+            
             //println!("{} new nodes added", new_nodes_indices.len());
             iteration_count += 1;
         }

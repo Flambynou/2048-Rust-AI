@@ -23,7 +23,7 @@ const EXPECTIMAX_DEPTH: usize = 6;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
 const MCTS_TIME_LIMIT: f32 = 10.0;
-const MCTS_ITERATION_LIMIT: usize = 100000;
+const MCTS_ITERATION_LIMIT: usize = 5000;
 
 fn main() {
     // Ask user for playing / training / ai mode
