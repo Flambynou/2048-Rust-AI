@@ -19,10 +19,10 @@ const SEED: u64 = 10;
 
 
 const MINIMAX_DEPTH: usize = 15;
-const EXPECTIMAX_DEPTH: usize = 6;
+const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 10.5;
+const MCTS_TIME_LIMIT: f32 = 0.2;
 const MCTS_ITERATION_LIMIT: usize = 100000;
 
 fn main() {
