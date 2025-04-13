@@ -254,6 +254,9 @@ impl FastGame {
 
     pub fn get_possible_directions(&self, grid: &[u32; 4]) -> Vec<game::Direction> {
         let mut directions = Vec::new();
+        if self.can_go_down(grid) {
+            directions.push(game::Direction::Down);
+        }
         if self.can_go_left(grid) {
             directions.push(game::Direction::Left);
         }
@@ -262,9 +265,6 @@ impl FastGame {
         }
         if self.can_go_up(grid) {
             directions.push(game::Direction::Up);
-        }
-        if self.can_go_down(grid) {
-            directions.push(game::Direction::Down);
         }
         directions
     }
