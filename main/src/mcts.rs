@@ -53,6 +53,8 @@ impl MonteCarloTree {
         MonteCarloTree { node_vec: vec![Box::new(rootnode)]}
     }
 
+    // ----------- Selection function ----------
+
     fn select_recursive(&mut self, node_index: usize, rng: &mut ThreadRng) -> usize {
         match self.node_vec[node_index].as_ref() {
             NodeType::Spawn(spawn_node) => {
@@ -89,6 +91,8 @@ impl MonteCarloTree {
             },
         }
     }
+
+    // ----------- Expand function ----------
 
     fn expand(&mut self, fast: &fastgame::FastGame, node_index: usize, rng: &mut ThreadRng) -> usize {
         let chosen_node_index;
@@ -169,6 +173,8 @@ impl MonteCarloTree {
         }
         return chosen_node_index;
     }
+
+    // ----------- Rollout anb policy functions ----------
 
     fn greedy_policy(fast: &fastgame::FastGame, grid: [u32;4], score: u32) -> ([u32;4],u32) {
         if fast.is_lost(&grid) {
@@ -254,6 +260,8 @@ impl MonteCarloTree {
         return score as f32;
     }
 
+    // ----------- Backpropagation function ----------
+
     fn backpropagate_recursive(&mut self, node_index: usize, score: f32) {
         match self.node_vec[node_index].as_mut() {
             NodeType::Spawn(ref mut spawn_node) => {
@@ -275,6 +283,9 @@ impl MonteCarloTree {
             }
         }
     }
+
+
+    // ----------- Main function ----------
 
     pub fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) -> (game::Direction,usize) {
         let mut rng = rand::rng();
