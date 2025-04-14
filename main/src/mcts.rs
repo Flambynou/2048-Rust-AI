@@ -4,9 +4,8 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::time::{Instant, Duration};
 use std::collections::HashSet;
-use crate::minimax;
 
-const EXPLORATION_CONSTANT:f32 = 1.0;
+const EXPLORATION_CONSTANT:f32 = 1.4142;
 
 #[derive(Clone,Debug)]
 pub enum NodeType {
@@ -16,7 +15,6 @@ pub enum NodeType {
 #[derive(Clone,Debug)]
 pub struct SpawnNode {
     game_state: [u32;4],
-    score: u32,
     parent_index: Option<usize>,
     children_indices_blockexponent_and_isexplored: Vec<(usize,u32,bool)>,
     move_made: game::Direction,
@@ -27,7 +25,6 @@ pub struct SpawnNode {
 #[derive(Clone,Debug)]
 pub struct MoveNode {
     game_state: [u32;4],
-    score: u32,
     parent_index: Option<usize>,
     children_indices: Vec<usize>,
     actions_left: Vec<game::Direction>,
@@ -40,10 +37,9 @@ pub struct MonteCarloTree {
 }
 
 impl MonteCarloTree {
-    pub fn new(fast: &fastgame::FastGame, rootstate:[u32;4], score: u32) -> MonteCarloTree {
+    pub fn new(fast: &fastgame::FastGame, rootstate:[u32;4]) -> MonteCarloTree {
         let rootnode = NodeType::Move(MoveNode{
             game_state: rootstate,
-            score: score,
             parent_index: None,
             children_indices: Vec::new(),
             actions_left: fast.get_possible_directions(&rootstate),
@@ -112,7 +108,6 @@ impl MonteCarloTree {
                         let new_state = fast.place_block(spawn_node.game_state, empty_space, *exponent);
                         let new_child = NodeType::Move(MoveNode {
                             game_state: new_state,
-                            score: spawn_node.score,
                             parent_index: Some(node_index),
                             children_indices: Vec::new(),
                             actions_left: fast.get_possible_directions(&new_state),
@@ -151,10 +146,9 @@ impl MonteCarloTree {
                 }
                 let random_direction_index = rng.random_range(0..move_node.actions_left.len());
                 let direction_taken = move_node.actions_left[random_direction_index].clone();
-                let (state, score) = fast.make_move(&move_node.game_state, &direction_taken);
+                let (state, _) = fast.make_move(&move_node.game_state, &direction_taken);
                 let new_child = NodeType::Spawn(SpawnNode {
                     game_state: state,
-                    score: score,
                     parent_index: Some(node_index),
                     children_indices_blockexponent_and_isexplored: Vec::new(),
                     move_made: direction_taken.clone(),
@@ -176,35 +170,19 @@ impl MonteCarloTree {
 
     // ----------- Rollout anb policy functions ----------
 
-    fn greedy_policy(fast: &fastgame::FastGame, grid: [u32;4], score: u32) -> ([u32;4],u32) {
+    fn greedy_policy(fast: &fastgame::FastGame, grid: [u32;4]) -> [u32;4] {
         if fast.is_lost(&grid) {
-            return (grid,score); 
+            return grid; 
         }
-        let (new_grid,move_score) = fast.get_possible_directions(&grid)
+        let (new_grid, _) = fast.get_possible_directions(&grid)
             .iter()
             .map(|direction| {
                 let (new_grid, move_score) = fast.make_move(&grid, &direction);
                 (new_grid, move_score)
             })
             .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-            .unwrap_or((grid,score)).clone();
-        return (new_grid,score+move_score);
-    }
-
-    fn greedy_rollout(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
-        let (mut game_state, current_score) = match node {
-            NodeType::Spawn(spawn_node) => (spawn_node.game_state, spawn_node.score),
-            NodeType::Move(move_node) => (move_node.game_state, move_node.score),
-        };
-        let mut score = current_score;
-        while !fast.is_lost(&game_state) {
-            (game_state, score) = Self::greedy_policy(&fast, game_state, score);
-            let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
-            let coords = empty_list[rng.random_range(0..empty_list.len())];
-            game_state = fast.place_block(game_state, coords, exponent)
-        }
-        return score as f32;
+            .unwrap_or((grid,0)).clone();
+        return new_grid;
     }
 
     fn greedy_rollout_move_number(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
@@ -214,7 +192,7 @@ impl MonteCarloTree {
         };
         let mut move_number = 0.0;
         while !fast.is_lost(&game_state) {
-            (game_state, _) = Self::greedy_policy(&fast, game_state, 0);
+            game_state = Self::greedy_policy(&fast, game_state);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
             let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
@@ -224,31 +202,15 @@ impl MonteCarloTree {
         return move_number;
     }
 
-    fn random_move_policy(fast: &fastgame::FastGame, grid: [u32;4], score: u32, rng: &mut ThreadRng) -> ([u32;4],u32) {
+    fn random_move_policy(fast: &fastgame::FastGame, grid: [u32;4], rng: &mut ThreadRng) -> [u32;4] {
         if fast.is_lost(&grid) {
-            return (grid,score); 
+            return grid; 
         }
         let possible_directions = fast.get_possible_directions(&grid);
         let random_direction_index = rng.random_range(0..possible_directions.len());
         let direction = &possible_directions[random_direction_index];
-        let (new_grid,move_score) = fast.make_move(&grid, &direction);
-        return (new_grid,score+move_score);
-    }
-
-    fn random_rollout(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
-        let (mut game_state, current_score) = match node {
-            NodeType::Spawn(spawn_node) => (spawn_node.game_state, spawn_node.score),
-            NodeType::Move(move_node) => (move_node.game_state, move_node.score),
-        };
-        let mut score = current_score;
-        while !fast.is_lost(&game_state) {
-            (game_state, score) = Self::random_move_policy(&fast, game_state, score, rng);
-            let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
-            let coords = empty_list[rng.random_range(0..empty_list.len())];
-            game_state = fast.place_block(game_state, coords, exponent);
-        }
-        return score as f32;
+        let (new_grid,_) = fast.make_move(&grid, &direction);
+        return new_grid;
     }
 
     fn random_rollout_move_number(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
@@ -258,7 +220,7 @@ impl MonteCarloTree {
         };
         let mut move_number = 0.0;
         while !fast.is_lost(&game_state) {
-            (game_state, _) = Self::random_move_policy(&fast, game_state, 0, rng);
+            game_state = Self::random_move_policy(&fast, game_state, rng);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
             let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
@@ -279,11 +241,11 @@ impl MonteCarloTree {
     }
 
     fn move_ordering_rollout(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut ThreadRng) -> f32 {
-        let (mut game_state, current_score) = match node {
-            NodeType::Spawn(spawn_node) => (spawn_node.game_state, spawn_node.score),
-            NodeType::Move(move_node) => (move_node.game_state, move_node.score),
+        let mut game_state = match node {
+            NodeType::Spawn(spawn_node) => spawn_node.game_state,
+            NodeType::Move(move_node) => move_node.game_state,
         };
-        let mut score = current_score;
+        let mut score = 0;
         while ! fast.is_lost(&game_state) {
             (game_state, score) = Self::move_ordering_policy(&fast, game_state, score);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
@@ -296,13 +258,13 @@ impl MonteCarloTree {
 
     // ----------- Backpropagation function ----------
 
-    fn backpropagate_recursive(&mut self, node_index: usize, score: f32) {
+    fn backpropagate_recursive(&mut self, node_index: usize, score: f32, current_move_number: f32) {
         match self.node_vec[node_index].as_mut() {
             NodeType::Spawn(ref mut spawn_node) => {
-                spawn_node.total_value += score / 3932100.0;
+                spawn_node.total_value += score / (current_move_number+1.0);
                 spawn_node.visit_count += 1.0;
                 if let Some(parent_index) = spawn_node.parent_index {
-                    self.backpropagate_recursive(parent_index, score);
+                    self.backpropagate_recursive(parent_index, score, current_move_number);
                 } else {
                     return;
                 }
@@ -310,7 +272,7 @@ impl MonteCarloTree {
             NodeType::Move(ref mut move_node) => {
                 move_node.visit_count += 1.0;
                 if let Some(parent_index) = move_node.parent_index {
-                    self.backpropagate_recursive(parent_index, score);
+                    self.backpropagate_recursive(parent_index, score, current_move_number);
                 } else {
                     return;
                 }
@@ -321,7 +283,7 @@ impl MonteCarloTree {
 
     // ----------- Main function ----------
 
-    pub fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) -> (game::Direction,usize) {
+    pub fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize, current_move_number: f32) -> (game::Direction,usize) {
         let mut rng = rand::rng();
         let time_limit = Duration::from_secs_f32(time_limit);
         let start_time = std::time::Instant::now();
@@ -330,7 +292,7 @@ impl MonteCarloTree {
             let selected_node_index = self.select_recursive(0, &mut rng);
             let chosen_node_index = self.expand(&fast, selected_node_index, &mut rng);
             let rollout_score = Self::greedy_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
-            self.backpropagate_recursive(chosen_node_index, rollout_score);
+            self.backpropagate_recursive(chosen_node_index, rollout_score, current_move_number as f32);
             //println!("{} new nodes added", new_nodes_indices.len());
             iteration_count += 1;
         }

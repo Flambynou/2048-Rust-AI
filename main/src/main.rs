@@ -22,8 +22,8 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.2;
-const MCTS_ITERATION_LIMIT: usize = 500000;
+const MCTS_TIME_LIMIT: f32 = 0.05;
+const MCTS_ITERATION_LIMIT: usize = 1000000;
 
 fn main() {
     //mcts_test()
@@ -276,9 +276,12 @@ fn use_mcts(){
     let mut game_score = 0;
     renderer::render(FastGame::to_flat_array(game_state));
     println!("Score: {:?}", game_score);
+    let mut move_number = 0.0;
+    let start_time = std::time::Instant::now();
     loop {
-        let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, game_score);
-        let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
+        move_number += 1.0;
+        let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
+        let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT, move_number);
         let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
         game_score += move_score;
         game_state = new_game_state;
@@ -290,6 +293,8 @@ fn use_mcts(){
         }
         renderer::render(FastGame::to_flat_array(game_state));
         println!("Score: {:?}", game_score);
+        println!("Move number {}", move_number);
+        println!("Time spent since the begining of the game : {:?}", std::time::Instant::now() - start_time);
         println!("Iterations: {}", iteration_count);
     }
 }
@@ -303,7 +308,7 @@ fn mcts_test(){
     let mut game_score = 0;
     renderer::render(FastGame::to_flat_array(game_state));
     println!("Score: {:?}", game_score);
-    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0);
+    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0.0);
     let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
     let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
     game_score += move_score;
