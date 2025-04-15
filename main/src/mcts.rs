@@ -5,7 +5,7 @@ use rand::Rng;
 use std::time::{Instant, Duration};
 use std::collections::HashSet;
 
-const EXPLORATION_CONSTANT:f32 = 1.4142;
+const EXPLORATION_CONSTANT:f32 = 0.4142;
 
 #[derive(Clone,Debug)]
 pub enum NodeType {
@@ -51,6 +51,7 @@ impl MonteCarloTree {
         });
         MonteCarloTree { node_vec: vec![Box::new(rootnode)]}
     }
+    // ---------- Tree reuse/root change functions -----------
 
     // ----------- Selection function ----------
 
@@ -204,7 +205,7 @@ impl MonteCarloTree {
             game_state = fast.place_block(game_state, coords, exponent);
             move_number += 1.0;
         }
-        return move_number;
+        return move_number * *fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32;
     }
 
     fn random_move_policy(fast: &fastgame::FastGame, grid: [u32;4], rng: &mut ThreadRng) -> [u32;4] {
@@ -296,7 +297,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
             let selected_node_index = self.select_recursive(0, &mut rng);
             let chosen_node_index = self.expand(&fast, selected_node_index, &mut rng);
-            let rollout_score = Self::random_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
+            let rollout_score = Self::greedy_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
             self.backpropagate_recursive(chosen_node_index, rollout_score, current_move_number as f32);
             //println!("{} new nodes added", new_nodes_indices.len());
             iteration_count += 1;

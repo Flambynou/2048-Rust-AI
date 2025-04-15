@@ -8,6 +8,7 @@ mod mcts;
 
 
 
+use fastrace::Span;
 use fastgame::FastGame;
 use seeded_random::{Random, Seed};
 use std::path::Path;
@@ -22,12 +23,10 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.5;
-const MCTS_ITERATION_LIMIT: usize = 1000000;
+const MCTS_TIME_LIMIT: f32 = 0.05;
+const MCTS_ITERATION_LIMIT: usize = 1_000_000;
 
 fn main() {
-    //mcts_test()
-    
     // Ask user for playing / training / ai mode
     println!("Choose a mode :");
     println!("1. Play");
@@ -50,7 +49,6 @@ fn main() {
         "7" => use_mcts(),
         _ => println!("Invalid mode"),
     }
-    
 }
 
 fn play() {
@@ -300,20 +298,18 @@ fn use_mcts(){
 }
 
 fn mcts_test(){
+    let _span = Span::enter_with_local_parent("test");
     let fast = fastgame::FastGame::new();
     let rand = Random::from_seed(Seed::unsafe_new(SEED));
     let mut game_state = [0;4];
     game_state = fast.add_random_block(game_state, &rand);
     game_state = fast.add_random_block(game_state, &rand);
     let mut game_score = 0;
-    renderer::render(FastGame::to_flat_array(game_state));
-    println!("Score: {:?}", game_score);
     let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0.0);
-    let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT, 0.0);
+    let (best_direction,iteration_count) = mcts.get_best_direction(&fast, 0.5, 100, 0.0);
     let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
     game_score += move_score;
     game_state = new_game_state;
-    renderer::render(FastGame::to_flat_array(game_state));
     println!("Score: {:?}", game_score);
     println!("Iterations: {}", iteration_count);
 }

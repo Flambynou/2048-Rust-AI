@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-flame = "0.2.2"
+fastrace = "0.7.9"
 rand = "0.9.0"
 rayon = "1.10.0"
 seeded-random = "0.6.0"
