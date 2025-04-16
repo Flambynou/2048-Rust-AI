@@ -6,6 +6,35 @@ use rand::SeedableRng;
 use std::time::{Instant, Duration};
 use std::collections::HashSet;
 
+// Restructured node implementation
+
+struct Node {
+    // Functionnality variables
+    game_state: [u32;4],
+    parent_index: Option<usize>,
+    visit_count: usize,
+    is_terminal: bool,
+    children_indices: Vec<usize>,
+    specific_information: TypeInfo,
+    // Additional information for score/display
+    move_number: usize,
+}
+
+enum TypeInfo {
+    Spawn(SpawnInfo),
+    Move(MoveInfo),
+}
+
+struct SpawnInfo {
+    move_made: game::Direction,
+    total_value: f32,
+}
+
+struct MoveInfo {
+    actions_left: Vec<game::Direction>,
+}
+
+
 const EXPLORATION_CONSTANT:f32 = 0.5;
 
 #[derive(Clone,Debug)]
