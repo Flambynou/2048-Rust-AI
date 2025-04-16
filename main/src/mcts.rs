@@ -201,7 +201,7 @@ impl MonteCarloTree {
         while !fast.is_lost(&game_state) {
             game_state = Self::greedy_policy(&fast, game_state);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
+            let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
             move_number += 1.0;
@@ -217,7 +217,7 @@ impl MonteCarloTree {
         while !fast.is_lost(&game_state) {
             game_state = Self::greedy_policy(&fast, game_state);
             let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random::<f32>() < 0.9 {1} else {2};
+             let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
         }
@@ -243,6 +243,30 @@ impl MonteCarloTree {
         let mut move_number = starting_move_number;
         while !fast.is_lost(&game_state) {
             game_state = Self::random_move_policy(&fast, game_state, rng);
+            let empty_list = fastgame::FastGame::empty_list(&game_state);
+            let exponent = if rng.random_bool(0.9) {1} else {2};
+            let coords = empty_list[rng.random_range(0..empty_list.len())];
+            game_state = fast.place_block(game_state, coords, exponent);
+            move_number += 1.0;
+        }
+        return move_number * *fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32;
+    }
+    #[time_graph::instrument]
+    fn random_rollout_move_number2(fast: &fastgame::FastGame, node: &mut NodeType, rng: &mut SmallRng) -> f32 {
+        let (mut game_state, starting_move_number) = match node {
+            NodeType::Spawn(spawn_node) => (spawn_node.game_state,spawn_node.move_number),
+            NodeType::Move(move_node) => (move_node.game_state,move_node.move_number),
+        };
+        let mut move_number = starting_move_number;
+        let mut possible_directions;
+        loop {
+            possible_directions = fast.get_possible_directions(&game_state);
+            let direction_number = possible_directions.len();
+            if direction_number == 0 {break};
+            game_state = {
+                let random_direction_index = rng.random_range(0..direction_number);
+                fast.make_move(&game_state, &possible_directions[random_direction_index]).0
+            };
             let empty_list = fastgame::FastGame::empty_list(&game_state);
             let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
@@ -287,7 +311,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
             let selected_node_index = self.select_recursive(0, &mut rng);
             let chosen_node_index = self.expand(&fast, selected_node_index, &mut rng);
-            let rollout_score = Self::greedy_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
+            let rollout_score = Self::random_rollout_move_number2(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
             self.backpropagate_recursive(chosen_node_index, rollout_score, root_move_number);
             iteration_count += 1;
         }
