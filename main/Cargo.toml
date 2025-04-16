@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-fastrace = "0.7.9"
 rand = "0.9.0"
 rayon = "1.10.0"
 seeded-random = "0.6.0"
 time = "0.3.39"
+time-graph = { version = "0.3.2", features = ["table"] }
 
 [profile.release]
 codegen-units = 1

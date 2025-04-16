@@ -137,19 +137,20 @@ impl FastGame {
         )
     }
 
+    #[inline]
     pub fn move_grid_left(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
-        let mut new_grid = [0; 4];
-        let mut score = 0;
-
-        for i in 0..4 {
-            let (new_row, row_score) = self.move_row_left(grid[i]);
-            new_grid[i] = new_row;
-            score += row_score;
-        }
-
-        (new_grid, score)
+        let r0 = self.table[grid[0] as usize];
+        let r1 = self.table[grid[1] as usize];
+        let r2 = self.table[grid[2] as usize];
+        let r3 = self.table[grid[3] as usize];
+        
+        (
+            [r0.new_state, r1.new_state, r2.new_state, r3.new_state],
+            r0.score + r1.score + r2.score + r3.score
+        )
     }
 
+    #[inline]
     pub fn move_grid_right(&self, grid: &[u32; 4]) -> ([u32; 4], u32) {
         let mut new_grid = [0; 4];
         let mut score = 0;
@@ -159,7 +160,6 @@ impl FastGame {
             new_grid[i] = new_row;
             score += row_score;
         }
-
         (new_grid, score)
     }
 
@@ -168,7 +168,6 @@ impl FastGame {
         for i in 0..4 {
             column |= ((grid[i] >> ((3-col) * 5)) & 0x1F) << ((3-i) * 5);
         }
-
         column
     }
 
@@ -206,7 +205,7 @@ impl FastGame {
 
         (new_grid, score)
     }
-
+    #[inline]
     fn can_go_left(&self, grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             if self.table[grid[i] as usize].changed {
@@ -215,7 +214,7 @@ impl FastGame {
         }
         return false;
     }
-
+    #[inline]
     fn can_go_right(&self, grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             if self.table[Self::reverse_row(grid[i]) as usize].changed {
@@ -224,7 +223,7 @@ impl FastGame {
         }
         return false;
     }
-
+    #[inline]
     fn can_go_up(&self, new_grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
@@ -234,7 +233,7 @@ impl FastGame {
         }
         return false;
     }
-
+    #[inline]
     fn can_go_down(&self, new_grid: &[u32; 4]) -> bool {
         for i in 0..4 {
             let column = Self::extract_column(new_grid, i);
@@ -244,21 +243,21 @@ impl FastGame {
         }
         return false;
     }
-
+    #[inline]
     pub fn is_lost(&self, grid: &[u32; 4]) -> bool {
         !(self.can_go_left(grid)
             || self.can_go_right(grid)
             || self.can_go_up(grid)
             || self.can_go_down(grid))
     }
-
+    #[inline]
     pub fn get_possible_directions(&self, grid: &[u32; 4]) -> Vec<game::Direction> {
-        let mut directions = Vec::new();
-        if self.can_go_down(grid) {
-            directions.push(game::Direction::Down);
-        }
+        let mut directions = Vec::with_capacity(4);
         if self.can_go_left(grid) {
             directions.push(game::Direction::Left);
+        }
+        if self.can_go_down(grid) {
+            directions.push(game::Direction::Down);
         }
         if self.can_go_right(grid) {
             directions.push(game::Direction::Right);
@@ -268,7 +267,7 @@ impl FastGame {
         }
         directions
     }
-
+    #[inline]
     pub fn make_move(&self, grid: &[u32; 4], direction: &game::Direction) -> ([u32; 4], u32) {
         let (new_grid, score) = match direction {
             game::Direction::Left => self.move_grid_left(grid),
@@ -279,17 +278,24 @@ impl FastGame {
         };
         (new_grid, score)
     }
-
+    #[inline]
     pub fn empty_list(grid: &[u32; 4]) -> Vec<(usize, usize)> {
-        let mut empty = Vec::new();
-        for i in 0..4 {
-            for j in 0..4 {
-                if (grid[i] >> (j * 5)) & 0x1F == 0 {
-                    empty.push((i, j));
-                }
+        let mut empty = Vec::with_capacity(16);
+        for (i, &row) in grid.iter().enumerate() {
+            if row & 0x0000001F == 0 {
+                empty.push((i, 0));
+            }
+            if row & 0x00003E0 == 0 {
+                empty.push((i, 1));
+            }
+            if row & 0x0007C00 == 0 {
+                empty.push((i, 2));
+            }
+            if row & 0x00F8000 == 0 {
+                empty.push((i, 3));
             }
         }
-        empty
+            empty
     }
 
     pub fn place_block(&self, grid: [u32; 4], pos: (usize, usize), value: u32) -> [u32; 4] {
