@@ -169,11 +169,9 @@ impl MonteCarloTree2 {
         return new_child_index;
     }
 
-    fn simulation1(fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> f32 {
-        let (mut game_state, starting_move_number) = match node {
-            NodeType::Spawn(spawn_node) => (spawn_node.game_state,spawn_node.move_number),
-            NodeType::Move(move_node) => (move_node.game_state,move_node.move_number),
-        };
+    fn simulation1(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> f32 {
+        let node = &self.nodes.borrow()[node_index];
+        let (mut game_state, starting_move_number) = (node.game_state, node.move_number);
         let mut move_number = starting_move_number;
         let mut possible_directions;
         loop {
@@ -188,10 +186,10 @@ impl MonteCarloTree2 {
             let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
-            move_number += 1.0;
+            move_number += 1;
         }
         let score_bias = Self::supplementary_scoring_function(game_state);
-        return move_number * score_bias;
+        return move_number as f32 * score_bias;
     }
 
     #[inline]
@@ -224,7 +222,7 @@ impl MonteCarloTree2 {
         while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_score = Self::simulation1(&fast, chosen_node_index, &mut rng);
+            let rollout_score = self.simulation1(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_score);
             iteration_count += 1;
         }
