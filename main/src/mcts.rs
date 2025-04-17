@@ -27,11 +27,75 @@ enum TypeInfo {
 
 struct SpawnInfo {
     move_made: game::Direction,
+    block_spawns_left: Vec<((usize,usize),u32)>,
     total_value: f32,
 }
 
 struct MoveInfo {
     actions_left: Vec<game::Direction>,
+    probability: f32,
+}
+
+use std::cell::RefCell;
+pub struct MonteCarloTree2 {
+    nodes: RefCell<Vec<Node>>,
+}
+
+impl MonteCarloTree2 {
+    pub fn new(fast: &fastgame::FastGame, root_state:[u32;4], starting_move_number: usize) -> Self {
+        let possible_directions = fast.get_possible_directions(&root_state);
+        let rootnode = Node{
+            game_state: root_state,
+            parent_index: None,
+            visit_count: 0,
+            is_terminal: possible_directions.is_empty(),
+            children_indices: Vec::new(),
+            specific_information: TypeInfo::Move(MoveInfo { actions_left: possible_directions, probability: 1.0 }),
+            move_number: starting_move_number,
+        };
+        Self { nodes: RefCell::new(vec![rootnode])}
+    }
+
+    fn selection(&self, node_index: usize) -> usize {
+        let node = &self.nodes.borrow()[node_index];
+        let children_scores:Vec<f32> = Vec::with_capacity(node.children_indices.len());
+        match &node.specific_information {
+            TypeInfo::Spawn(spawn_info) => {
+                if !spawn_info.block_spawns_left.is_empty() {
+                    return node_index;
+                }
+                // Todo: add calculation of children scores (probability/visitcount)  
+            },
+            TypeInfo::Move(move_info) => {
+                if !move_info.actions_left.is_empty() {
+                    return node_index;
+                }
+                // Todo: add calculation of children scores (uct value)
+            }
+        };
+        let child_index_index: usize = children_scores
+        .iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .map(|(index, _)| index)
+        .unwrap();
+        return self.selection(node.children_indices[child_index_index]);
+    }
+
+    fn expansion(&self, node_index: usize) -> usize {
+        let node = &self.nodes.borrow()[node_index];
+        match &node.specific_information {
+            TypeInfo::Spawn(spawn_info) => {
+
+            },
+            TypeInfo::Move(move_info) => {
+
+            },
+        }
+
+
+        return 0;
+    }
 }
 
 
@@ -81,8 +145,6 @@ impl MonteCarloTree {
         });
         MonteCarloTree { node_vec: vec![Box::new(rootnode)]}
     }
-    // ---------- Tree reuse/root change functions -----------
-
     // ----------- Selection function ----------
     #[time_graph::instrument]
     fn select_recursive(&mut self, node_index: usize, rng: &mut SmallRng) -> usize {
