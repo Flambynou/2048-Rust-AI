@@ -22,7 +22,7 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.05;
+const MCTS_TIME_LIMIT: f32 = 0.02;
 const MCTS_ITERATION_LIMIT: usize = 1_000_000;
 
 fn main() {
@@ -46,7 +46,7 @@ fn main() {
         "4" => ai(),
         "5" => use_mini_expecti_max(true),
         "6" => use_mini_expecti_max(false),
-        "7" => use_mcts2(),
+        "7" => use_mcts(),
         "8" => mcts_test(),
         _ => println!("Invalid mode"),
     }
@@ -265,44 +265,8 @@ fn playfast() {
     }
 }
 
-
 fn use_mcts(){
     time_graph::enable_data_collection(true);
-    let fast = fastgame::FastGame::new();
-    let rand = Random::from_seed(Seed::unsafe_new(SEED));
-    let mut game_state = [0;4];
-    game_state = fast.add_random_block(game_state, &rand);
-    game_state = fast.add_random_block(game_state, &rand);
-    //game_state = [163840,229376,327680,427008];
-    let mut game_score = 0;
-    renderer::render(FastGame::to_flat_array(game_state));
-    println!("Score: {:?}", game_score);
-    let mut move_number = 0.0;
-    let start_time = std::time::Instant::now();
-    loop {
-        let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, move_number);
-        move_number += 1.0;
-        let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT, move_number);
-        let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
-        game_score += move_score;
-        game_state = new_game_state;
-        if fast.is_lost(&game_state) {
-            renderer::render(FastGame::to_flat_array(game_state));
-            println!("Final score : {}", game_score);
-            println!("You lost !");
-            let graph = time_graph::get_full_graph();
-            println!("{}", graph.as_table());
-            break;
-        }
-        renderer::render(FastGame::to_flat_array(game_state));
-        println!("Score: {:?}", game_score);
-        println!("Move number {}", move_number);
-        println!("Time spent since the begining of the game : {:?}", std::time::Instant::now() - start_time);
-        println!("Nodes: {}", iteration_count);
-    }
-}
-
-fn use_mcts2(){
     let fast = fastgame::FastGame::new();
     let rand = Random::from_seed(Seed::unsafe_new(SEED));
     let mut game_state = [0;4];
@@ -315,7 +279,7 @@ fn use_mcts2(){
     let mut move_number = 0;
     let start_time = std::time::Instant::now();
     loop {
-        let mut mcts = mcts::MonteCarloTree2::new(&fast, game_state, move_number, game_score);
+        let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, move_number, game_score);
         move_number += 1;
         let best_direction = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
         let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
@@ -344,14 +308,13 @@ fn mcts_test(){
     game_state = fast.add_random_block(game_state, &rand);
     game_state = fast.add_random_block(game_state, &rand);
     let mut game_score = 0;
-    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0.0);
-    let (best_direction,iteration_count) = mcts.get_best_direction(&fast, 0.5, 1_000_000, 0.0);
+    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state, 0, 0);
+    let best_direction = mcts.get_best_direction(&fast, 0.5, 1_000_000);
     let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
     game_score += move_score;
     game_state = new_game_state;
     renderer::render(FastGame::to_flat_array(game_state));
     println!("Score: {:?}", game_score);
-    println!("Nodes: {}", iteration_count);
     let graph = time_graph::get_full_graph();
     println!("{}", graph.as_table());
 }
