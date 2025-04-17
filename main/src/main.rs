@@ -46,7 +46,7 @@ fn main() {
         "4" => ai(),
         "5" => use_mini_expecti_max(true),
         "6" => use_mini_expecti_max(false),
-        "7" => use_mcts(),
+        "7" => use_mcts2(),
         "8" => mcts_test(),
         _ => println!("Invalid mode"),
     }
@@ -317,7 +317,7 @@ fn use_mcts2(){
     loop {
         let mut mcts = mcts::MonteCarloTree2::new(&fast, game_state, move_number, game_score);
         move_number += 1;
-        let (best_direction,iteration_count) = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT, move_number);
+        let best_direction = mcts.get_best_direction(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
         let (new_game_state, move_score) = fast.play_move(game_state, best_direction, &rand);
         game_score += move_score;
         game_state = new_game_state;
@@ -333,7 +333,6 @@ fn use_mcts2(){
         println!("Score: {:?}", game_score);
         println!("Move number {}", move_number);
         println!("Time spent since the begining of the game : {:?}", std::time::Instant::now() - start_time);
-        println!("Nodes: {}", iteration_count);
     }
 }
 

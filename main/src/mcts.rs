@@ -3,7 +3,6 @@ use crate::game;
 use rand::Rng;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
-use seeded_random::Random;
 use std::time::{Instant, Duration};
 use std::collections::HashSet;
 
@@ -115,7 +114,9 @@ impl MonteCarloTree2 {
     }
 
     fn expansion(&mut self, fast: &fastgame::FastGame, node_index: usize, rng:&mut SmallRng) -> usize {
-        let node = &mut self.nodes.borrow_mut()[node_index];
+        let new_child_index = self.nodes.borrow().len();
+        let mut nodes = self.nodes.borrow_mut();
+        let node = &mut nodes[node_index];
         let new_child: Node;
         if node.is_terminal {
             return node_index;
@@ -162,10 +163,9 @@ impl MonteCarloTree2 {
             },
         }
         // Append its index to the parent's index list
-        let new_child_index = self.nodes.borrow().len();
         node.children_indices.push(new_child_index);
         // Add the child to the tree
-        self.nodes.borrow_mut().push(new_child);
+        nodes.push(new_child);
         return new_child_index;
     }
 
@@ -214,7 +214,7 @@ impl MonteCarloTree2 {
         }
     }
 
-    fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) -> game::Direction {
+    pub fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) -> game::Direction {
         let mut rng = SmallRng::from_rng(&mut rand::rng());
         let time_limit = Duration::from_secs_f32(time_limit);
         let start_time = std::time::Instant::now();
@@ -546,7 +546,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
             let selected_node_index = self.select_recursive(0, &mut rng);
             let chosen_node_index = self.expand(&fast, selected_node_index, &mut rng);
-            let rollout_score = Self::greedy_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
+            let rollout_score = Self::random_rollout_move_number(&fast, self.node_vec[chosen_node_index].as_mut(), &mut rng);
             self.backpropagate_recursive(chosen_node_index, rollout_score, root_move_number);
             iteration_count += 1;
         }
