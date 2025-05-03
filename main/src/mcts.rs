@@ -4,11 +4,13 @@ use rand::Rng;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use rand::seq::SliceRandom;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::time::{Instant, Duration};
-use std::collections::HashSet;
 
 // Restructured node implementation
 
+#[derive(Clone)]
 struct Node {
     // Functionnality variables
     game_state: [u32;4],
@@ -20,20 +22,21 @@ struct Node {
     // Additional information for score/display
     move_number: usize,
     score: u32,
+    highest_tile: u8,
 }
-
+#[derive(Clone)]
 enum TypeInfo {
     Spawn(SpawnInfo),
     Move(MoveInfo),
 }
-
+#[derive(Clone)]
 struct SpawnInfo {
     move_made: game::Direction,
     two_block_spawns_left: Vec<(usize,usize)>,
     four_block_spawns_left: Vec<(usize,usize)>,
     total_value: f32,
 }
-
+#[derive(Clone)]
 struct MoveInfo {
     actions_left: Vec<game::Direction>,
     probability: f32,
@@ -42,13 +45,15 @@ struct MoveInfo {
 use std::cell::RefCell;
 pub struct MonteCarloTree {
     nodes: RefCell<Vec<Node>>,
+    generation_iteration_count: usize,
+    inherited_node_count: usize,
+    highest_tile_seen: u8,
 }
 
-const EXPLORATION_CONSTANT:f32 = 100000.0;
-
+const EXPLORATION_CONSTANT:f32 = 1.4142;
 impl MonteCarloTree {
     #[time_graph::instrument]
-    pub fn new(fast: &fastgame::FastGame, root_state:[u32;4], starting_move_number: usize, starting_score: u32) -> Self {
+    pub fn new(fast: &fastgame::FastGame, root_state:[u32;4]) -> Self {
         let possible_directions = fast.get_possible_directions(&root_state);
         let rootnode = Node{
             game_state: root_state,
@@ -57,14 +62,89 @@ impl MonteCarloTree {
             is_terminal: possible_directions.is_empty(),
             children_indices: Vec::new(),
             specific_information: TypeInfo::Move(MoveInfo { actions_left: possible_directions, probability: 1.0 }),
-            move_number: starting_move_number,
-            score: starting_score,
+            move_number: 0,
+            score: 0,
+            highest_tile: *fastgame::FastGame::to_flat_array(root_state).iter().max().unwrap()
         };
-        Self { nodes: RefCell::new(vec![rootnode])}
+        Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, highest_tile_seen: 0, inherited_node_count: 0}
     }
 
-    fn get_info(&self) {
-        println!("Nodes : {}", self.nodes.borrow().len());
+    fn exploration_function(&self) -> f32 {
+        let root = self.nodes.borrow()[0].clone();
+        return (root.score as f32 + 1.0).log2();
+    }
+
+    pub fn find_new_root(&self, new_root_state: [u32;4]) -> Option<usize> {
+        for (index, node) in self.nodes.borrow().iter().enumerate() {
+            if node.game_state == new_root_state && match node.specific_information{ TypeInfo::Move(_) => true, _ => false} {
+                return Some(index);
+            }
+        }
+        // If the new root is not found as a child of the old root's children, return None
+        return None;
+    }
+
+    pub fn reroot(&mut self,fast: &fastgame::FastGame, gained_score: u32, new_root_state: [u32;4]) {
+        let mut new_nodes: Vec<Node> = Vec::new();
+        let mut new_tree_old_indices = Vec::new();
+        if let Some(new_root_old_index) = self.find_new_root(new_root_state) {
+            let old_nodes = self.nodes.borrow();
+            // First, traverse trough every node in the new tree (from the new root)
+            let mut stack = Vec::new();
+            let mut was_visited = vec![false;old_nodes.len()];
+            stack.push(new_root_old_index);
+            was_visited[new_root_old_index] = true;
+            while let Some(old_index) = stack.pop() {
+                new_tree_old_indices.push(old_index);
+                let node = &old_nodes[old_index];
+                for &child_old_index in &node.children_indices {
+                    if !was_visited[child_old_index]{
+                        was_visited[child_old_index] = true;
+                        stack.push(child_old_index);
+                    }
+                }
+            }
+
+            // Then, map old indices to new indices
+            let mut index_map = vec![None;old_nodes.len()];
+            for (new_index, &old_index) in new_tree_old_indices.iter().enumerate() {
+                index_map[old_index] = Some(new_index);
+            }
+            // Lastly, create the new tree and change the indices
+            for &old_index in &new_tree_old_indices {
+                let old_node = &old_nodes[old_index];
+                let new_parent = old_node.parent_index.and_then(|old_parent_index| index_map[old_parent_index]);
+                let new_children: Vec<usize> = old_node.children_indices
+                    .iter()
+                    .filter_map(|&old_child_index| index_map[old_child_index])
+                    .collect();
+                // Create the new nodes with corrected parent/children indices and add them to the new vec
+                let mut new_node = old_node.clone();
+                new_node.parent_index = new_parent;
+                new_node.children_indices = new_children;
+                new_nodes.push(new_node);
+            }
+        }
+        else {
+            let old_nodes = self.nodes.borrow();
+            let old_root = &old_nodes[0];
+            let possible_directions = fast.get_possible_directions(&new_root_state);
+            let new_node = Node{
+                game_state: new_root_state,
+                parent_index: None,
+                visit_count: 0,
+                is_terminal: possible_directions.is_empty(),
+                children_indices: Vec::new(),
+                specific_information: TypeInfo::Move(MoveInfo { actions_left: possible_directions, probability: 1.0 }),
+                move_number: old_root.move_number + 1,
+                score: old_root.score + gained_score,
+                highest_tile: *fastgame::FastGame::to_flat_array(new_root_state).iter().max().unwrap()
+            };
+            new_nodes.push(new_node);
+        }
+        self.nodes = RefCell::new(new_nodes);
+        self.generation_iteration_count = 0;
+        self.inherited_node_count = new_tree_old_indices.len();
     }
 
     #[time_graph::instrument]
@@ -101,7 +181,7 @@ impl MonteCarloTree {
                     match &child.specific_information {
                         TypeInfo::Spawn(spawn_info) => {children_scores.push(
                             (spawn_info.total_value / child.visit_count as f32) 
-                            + EXPLORATION_CONSTANT * ((node.visit_count as f32).ln() / child.visit_count as f32).sqrt()
+                            + self.exploration_function() * EXPLORATION_CONSTANT * ((node.visit_count as f32).ln() / child.visit_count as f32).sqrt()
                             )},
                         TypeInfo::Move(_) => unreachable!("Move is a child of move"),
                     }
@@ -181,6 +261,7 @@ impl MonteCarloTree {
                     }),
                     move_number: node.move_number,
                     score: node.score,
+                    highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
                 };
             },
             TypeInfo::Move(ref mut move_info) => {
@@ -204,6 +285,7 @@ impl MonteCarloTree {
                     }),
                     move_number: node.move_number + 1,
                     score: node.score + move_score,
+                    highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
                 }
             },
         }
@@ -214,104 +296,264 @@ impl MonteCarloTree {
         return new_child_index;
     }
 
-    #[inline]
-    fn supplementary_scoring_function(game_state: [u32;4]) -> f32 {
-        *fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32
-    }
-
     #[time_graph::instrument]
-    fn simulation1(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> f32 {
+    fn random_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
         let node = &self.nodes.borrow()[node_index];
-        let (mut game_state, starting_move_number) = (node.game_state, node.move_number);
+        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
+        let mut score = starting_score;
         let mut move_number = starting_move_number;
-        let mut possible_directions;
+        match &node.specific_information {
+            TypeInfo::Spawn(_) => {
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+            }
+            _ => ()
+        }
         loop {
-            possible_directions = fast.get_possible_directions(&game_state);
+            let possible_directions = fast.get_possible_directions(&game_state);
             let direction_number = possible_directions.len();
             if direction_number == 0 {break};
-            game_state = {
+            let (new_game_state,move_score) = {
                 let random_direction_index = rng.random_range(0..direction_number);
-                fast.make_move(&game_state, &possible_directions[random_direction_index]).0
+                fast.make_move(&game_state, &possible_directions[random_direction_index])
             };
+            game_state = new_game_state;
+            score += move_score;
             let empty_list = fastgame::FastGame::empty_list(&game_state);
             let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
             move_number += 1;
         }
-        let score_bias = Self::supplementary_scoring_function(game_state);
-        return move_number as f32 * score_bias;
+        return (game_state,move_number,score);
     }
 
     #[time_graph::instrument]
-    fn greedy_policy(fast: &fastgame::FastGame, grid: [u32;4]) -> [u32;4] {
-        if fast.is_lost(&grid) {
-            return grid; 
-        }
-        let (new_grid, _) = fast.get_possible_directions(&grid)
-            .iter()
-            .map(|direction| {
-                let (new_grid, move_score) = fast.make_move(&grid, &direction);
-                (new_grid, move_score)
-            })
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-            .unwrap_or((grid,0)).clone();
-        return new_grid;
-    }
-
-    #[time_graph::instrument]
-    fn simulation2(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> f32 {
+    fn greedy_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
         let node = &self.nodes.borrow()[node_index];
-        let (mut game_state, starting_move_number) = (node.game_state, node.move_number);
+        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
+        let mut score = starting_score;
         let mut move_number = starting_move_number;
-        while !fast.is_lost(&game_state) {
-            game_state = Self::greedy_policy(&fast, game_state);
+        match &node.specific_information {
+            TypeInfo::Spawn(_) => {
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+            }
+            _ => ()
+        }
+        loop {
+            let possible_directions = fast.get_possible_directions(&game_state);
+            if possible_directions.is_empty() {break};
+            let (new_game_state,move_score) = {
+                let best = possible_directions
+                    .iter()
+                    .map(|direction| {
+                        let (new_grid, move_score) = fast.make_move(&game_state, &direction);
+                        (new_grid, move_score)
+                    })
+                    .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .unwrap_or((game_state,0)).clone();
+                    best
+            };
+            game_state = new_game_state;
+            score += move_score;
+            move_number += 1;
             let empty_list = fastgame::FastGame::empty_list(&game_state);
             let exponent = if rng.random_bool(0.9) {1} else {2};
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
-            move_number += 1;
         }
-        return move_number as f32 * (*fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32);
+        return (game_state,move_number,score);
     }
+
     #[time_graph::instrument]
-    fn backpropagation(&mut self, node_index: usize, score: f32) {
+    fn mixed_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
+        let node = &self.nodes.borrow()[node_index];
+        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
+        let mut score = starting_score;
+        let mut move_number = starting_move_number;
+        match &node.specific_information {
+            TypeInfo::Spawn(_) => {
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+            }
+            _ => ()
+        }
+        loop {
+            let possible_directions = fast.get_possible_directions(&game_state);
+            if possible_directions.is_empty() {break};
+            let (new_game_state,move_score) = {
+                if rng.random_bool(0.99) {
+                    let best = possible_directions
+                    .iter()
+                    .map(|direction| {
+                        let (new_grid, move_score) = fast.make_move(&game_state, &direction);
+                        (new_grid, move_score)
+                    })
+                    .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .unwrap_or((game_state,0)).clone();
+                    best
+                } else {
+                    let direction_number = possible_directions.len();
+                    let random_direction_index = rng.random_range(0..direction_number);
+                    fast.make_move(&game_state, &possible_directions[random_direction_index])
+                }
+            };
+            game_state = new_game_state;
+            score += move_score;
+            move_number += 1;
+            let empty_list = fastgame::FastGame::empty_list(&game_state);
+            let exponent = if rng.random_bool(0.9) {1} else {2};
+            let coords = empty_list[rng.random_range(0..empty_list.len())];
+            game_state = fast.place_block(game_state, coords, exponent);
+        }
+        return (game_state,move_number,score);
+    }
+
+    #[time_graph::instrument]
+    fn parallel_simulation(
+        &self,
+        fast: &fastgame::FastGame,
+        node_index: usize,
+        rng: &mut SmallRng,
+    ) -> ([u32; 4], usize, u32) {
+        // Clone all needed data once up front
+        let node = self.nodes.borrow()[node_index].clone();
+        let seeds: Vec<u64> = (0..10).map(|_| rng.random()).collect();
+
+        // Parallel simulation core
+        let results: Vec<(u32, usize)> = seeds.into_par_iter().map(|seed| {
+            // Create isolated RNG for this thread
+            let mut thread_rng = SmallRng::seed_from_u64(seed);
+            
+            // Clone node data for thread isolation
+            let node = node.clone();
+            let (mut game_state, starting_score, mut move_number) = 
+                (node.game_state, node.score, node.move_number);
+            let mut score = starting_score;
+
+            // Replicated simulation logic
+            match &node.specific_information {
+                TypeInfo::Spawn(_) => {
+                    let empty_list = fastgame::FastGame::empty_list(&game_state);
+                    let exponent = if thread_rng.random_bool(0.9) {1} else {2};
+                    let coords = empty_list[thread_rng.random_range(0..empty_list.len())];
+                    game_state = fast.place_block(game_state, coords, exponent);
+                }
+                _ => ()
+            }
+
+            loop {
+                let possible_directions = fast.get_possible_directions(&game_state);
+                if possible_directions.is_empty() { break }
+                
+                let dir_idx = thread_rng.random_range(0..possible_directions.len());
+                let (new_state, move_score) = 
+                    fast.make_move(&game_state, &possible_directions[dir_idx]);
+                
+                game_state = new_state;
+                score += move_score;
+                
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if thread_rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[thread_rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+                
+                move_number += 1;
+            }
+
+            (score, move_number)
+        }).collect();
+
+        // Calculate averages
+        let total_score: u32 = results.iter().map(|&(s, _)| s).sum();
+        let total_moves: usize = results.iter().map(|&(_, m)| m).sum();
+
+        (
+            [0; 4], // Dummy game state
+            (total_moves as f32 / 10.0).round() as usize,
+            (total_score as f32 / 10.0).round() as u32
+        )
+    }
+
+    #[time_graph::instrument]
+    fn backpropagation(&mut self, node_index: usize, (game_state, move_count, score): ([u32;4],usize,u32)) {
         let parent_index = {
             let mut nodes = self.nodes.borrow_mut();
-            let root_move_number = nodes[0].move_number as f32;
             let node = &mut nodes[node_index];
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    spawn_info.total_value += score / (root_move_number+1.0);
+                    if let Some(_highest_tile) = fastgame::FastGame::to_flat_array(game_state).iter().max() {
+                        spawn_info.total_value += (score as f32 + 1.0).log2();   
+                    } else {
+                        unreachable!();
+                    }
                 },
                 _ => (),
             }
             node.parent_index
         };
         if let Some(parent_index) = parent_index {
-            self.backpropagation(parent_index, score);
+            self.backpropagation(parent_index, (game_state, move_count, score));
         }
     }
-    #[time_graph::instrument]
-    pub fn get_best_direction(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) -> game::Direction {
+
+    pub fn grow_tree(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) {
         let mut rng = SmallRng::from_rng(&mut rand::rng());
         let time_limit = Duration::from_secs_f32(time_limit);
         let start_time = std::time::Instant::now();
-        let mut iteration_count = 0;
-        while Instant::now() - start_time < time_limit && iteration_count < iteration_limit {
+        let start_iteration_count = self.generation_iteration_count;
+        let mut iterations = 0;
+        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_score = self.simulation2(&fast, chosen_node_index, &mut rng);
-            self.backpropagation(chosen_node_index, rollout_score);
-            iteration_count += 1;
+            let rollout_info = self.greedy_simulation(&fast, chosen_node_index, &mut rng);
+            self.backpropagation(chosen_node_index, rollout_info);
+            iterations += 1;
         }
+        self.generation_iteration_count += iterations;
+    }
+
+    pub fn get_info(&self, best_direction: &game::Direction) {
+        let nodes = self.nodes.borrow();
+        let node_count = nodes.len();
+        let iteration_count = self.generation_iteration_count;
+        let root_children = &nodes[0].children_indices;
+        let mut expected_score = 0.0;
+        for child_index in root_children {
+            let child = &nodes[*child_index];
+            match &child.specific_information {
+                TypeInfo::Spawn(spawn_info) => {
+                    if &spawn_info.move_made == best_direction {
+                        expected_score = spawn_info.total_value / child.visit_count as f32;
+                    }
+                },
+                _ => unreachable!("Move is a child of spawn"),
+            }
+        };
+        let move_number = nodes[0].move_number;
+        println!("Number of nodes: {}",node_count);
+        println!("Iterations: {}", iteration_count);
+        println!("Expected score: {}", 2.0_f32.powf(expected_score) - 1.0);
+        println!("Move number: {}", move_number);
+        println!("Nodes inherited: {}", self.inherited_node_count);
+    }
+
+    #[time_graph::instrument]
+    pub fn get_best_direction(&self) -> game::Direction {
         return self.nodes.borrow()[0].children_indices.iter()
             .map(|child_index| {
                 let child = &self.nodes.borrow()[*child_index];
                 match &child.specific_information {
                     TypeInfo::Spawn(spawn_info) => {
-                        (spawn_info.total_value, spawn_info.move_made.clone())
+                        (spawn_info.total_value / child.visit_count as f32, spawn_info.move_made.clone())
                     },
                     _ => unreachable!(),
                 }
@@ -319,5 +561,25 @@ impl MonteCarloTree {
             .max_by(|a,b| a.0.partial_cmp(&b.0).expect("Could not order moves"))
             .map(|(_, direction)| direction)
             .expect("Could not choose best direction");
+    }
+    pub fn grow_root_children_only(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) {
+        let mut rng = SmallRng::from_rng(&mut rand::rng());
+        let time_limit = Duration::from_secs_f32(time_limit);
+        let start_time = std::time::Instant::now();
+        let start_iteration_count = self.generation_iteration_count;
+        let mut iterations = 0;
+        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
+            let root_node = &self.nodes.borrow()[0].clone();
+            let selected_node_index;
+            if match &root_node.specific_information {TypeInfo::Move(info) => !info.actions_left.is_empty(), _ => false} || root_node.children_indices.is_empty() {
+                selected_node_index = self.expansion(&fast, 0, &mut rng);
+            } else {
+                selected_node_index = root_node.children_indices[rng.random_range(0..root_node.children_indices.len())];
+            }
+            let rollout_info = self.random_simulation(&fast, selected_node_index, &mut rng);
+            self.backpropagation(selected_node_index, rollout_info);
+            iterations += 1;
+        }
+        self.generation_iteration_count += iterations;
     }
 }
