@@ -1,5 +1,6 @@
 use crate::fastgame;
 use crate::game;
+use crate::minimax;
 use rand::Rng;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -69,11 +70,13 @@ impl MonteCarloTree {
         Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, highest_tile_seen: 0, inherited_node_count: 0}
     }
 
+    #[time_graph::instrument]
     fn exploration_function(&self) -> f32 {
         let root = self.nodes.borrow()[0].clone();
-        return (root.score as f32 + 1.0).log2();
+        return (root.score as f32 +1.0).log2();
     }
 
+    #[time_graph::instrument]
     pub fn find_new_root(&self, new_root_state: [u32;4]) -> Option<usize> {
         for (index, node) in self.nodes.borrow().iter().enumerate() {
             if node.game_state == new_root_state && match node.specific_information{ TypeInfo::Move(_) => true, _ => false} {
@@ -84,6 +87,7 @@ impl MonteCarloTree {
         return None;
     }
 
+    #[time_graph::instrument]
     pub fn reroot(&mut self,fast: &fastgame::FastGame, gained_score: u32, new_root_state: [u32;4]) {
         let mut new_nodes: Vec<Node> = Vec::new();
         let mut new_tree_old_indices = Vec::new();
@@ -346,9 +350,11 @@ impl MonteCarloTree {
             _ => ()
         }
         loop {
-            let possible_directions = fast.get_possible_directions(&game_state);
+            let mut possible_directions = fast.get_possible_directions(&game_state);
             if possible_directions.is_empty() {break};
             let (new_game_state,move_score) = {
+                // Shuffle the directions so as not to introduce a bias for certain directions
+                possible_directions.shuffle(rng);
                 let best = possible_directions
                     .iter()
                     .map(|direction| {
@@ -371,7 +377,7 @@ impl MonteCarloTree {
     }
 
     #[time_graph::instrument]
-    fn mixed_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
+    fn merge_greedy_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
         let node = &self.nodes.borrow()[node_index];
         let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
         let mut score = starting_score;
@@ -379,45 +385,49 @@ impl MonteCarloTree {
         match &node.specific_information {
             TypeInfo::Spawn(_) => {
                 let empty_list = fastgame::FastGame::empty_list(&game_state);
-                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let exponent = if rng.random_bool(0.9) { 1 } else { 2 };
                 let coords = empty_list[rng.random_range(0..empty_list.len())];
                 game_state = fast.place_block(game_state, coords, exponent);
             }
-            _ => ()
+            _ => (),
         }
         loop {
-            let possible_directions = fast.get_possible_directions(&game_state);
-            if possible_directions.is_empty() {break};
+            let mut possible_directions = fast.get_possible_directions(&game_state);
+            if possible_directions.is_empty() {
+                break;
+            }
+            let empty_before = fastgame::FastGame::empty_list(&game_state).len();
+            // Shuffle to randomize order of evaluation
+            possible_directions.shuffle(rng);
+            // Precompute all possible moves with their merge counts
             let (new_game_state,move_score) = {
-                if rng.random_bool(0.99) {
-                    let best = possible_directions
+                let best = possible_directions
                     .iter()
                     .map(|direction| {
-                        let (new_grid, move_score) = fast.make_move(&game_state, &direction);
-                        (new_grid, move_score)
+                        let (new_state, move_score) = fast.make_move(&game_state, direction);
+                        let empty_after = fastgame::FastGame::empty_list(&new_state).len();
+                        let merges = empty_after - empty_before;
+                        (new_state, move_score, merges)
                     })
-                    .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-                    .unwrap_or((game_state,0)).clone();
-                    best
-                } else {
-                    let direction_number = possible_directions.len();
-                    let random_direction_index = rng.random_range(0..direction_number);
-                    fast.make_move(&game_state, &possible_directions[random_direction_index])
-                }
-            };
+                    .max_by(|a, b| a.2.partial_cmp(&b.2).unwrap())
+                    .unwrap_or((game_state,0,0)).clone();
+                (best.0, best.1)
+                };
+            // Update game state and score
             game_state = new_game_state;
             score += move_score;
             move_number += 1;
+            // Place new block
             let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random_bool(0.9) {1} else {2};
+            let exponent = if rng.random_bool(0.9) { 1 } else { 2 };
             let coords = empty_list[rng.random_range(0..empty_list.len())];
             game_state = fast.place_block(game_state, coords, exponent);
         }
-        return (game_state,move_number,score);
+        (game_state, move_number, score)
     }
 
     #[time_graph::instrument]
-    fn parallel_simulation(
+    fn parallel_greedy_simulation(
         &self,
         fast: &fastgame::FastGame,
         node_index: usize,
@@ -425,7 +435,7 @@ impl MonteCarloTree {
     ) -> ([u32; 4], usize, u32) {
         // Clone all needed data once up front
         let node = self.nodes.borrow()[node_index].clone();
-        let seeds: Vec<u64> = (0..10).map(|_| rng.random()).collect();
+        let seeds: Vec<u64> = (0..8).map(|_| rng.random()).collect();
 
         // Parallel simulation core
         let results: Vec<(u32, usize)> = seeds.into_par_iter().map(|seed| {
@@ -450,22 +460,27 @@ impl MonteCarloTree {
             }
 
             loop {
-                let possible_directions = fast.get_possible_directions(&game_state);
-                if possible_directions.is_empty() { break }
-                
-                let dir_idx = thread_rng.random_range(0..possible_directions.len());
-                let (new_state, move_score) = 
-                    fast.make_move(&game_state, &possible_directions[dir_idx]);
-                
-                game_state = new_state;
+                let mut possible_directions = fast.get_possible_directions(&game_state);
+                if possible_directions.is_empty() {break};
+                let (new_game_state,move_score) = {
+                    possible_directions.shuffle(&mut thread_rng);
+                    let best = possible_directions
+                        .iter()
+                        .map(|direction| {
+                            let (new_grid, move_score) = fast.make_move(&game_state, &direction);
+                            (new_grid, move_score)
+                        })
+                        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                        .unwrap_or((game_state,0)).clone();
+                        best
+                };
+                game_state = new_game_state;
                 score += move_score;
-                
+                move_number += 1;
                 let empty_list = fastgame::FastGame::empty_list(&game_state);
                 let exponent = if thread_rng.random_bool(0.9) {1} else {2};
                 let coords = empty_list[thread_rng.random_range(0..empty_list.len())];
                 game_state = fast.place_block(game_state, coords, exponent);
-                
-                move_number += 1;
             }
 
             (score, move_number)
@@ -477,8 +492,8 @@ impl MonteCarloTree {
 
         (
             [0; 4], // Dummy game state
-            (total_moves as f32 / 10.0).round() as usize,
-            (total_score as f32 / 10.0).round() as u32
+            (total_moves as f32 / 8.0).round() as usize,
+            (total_score as f32 / 8.0).round() as u32
         )
     }
 
@@ -490,11 +505,7 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    if let Some(_highest_tile) = fastgame::FastGame::to_flat_array(game_state).iter().max() {
-                        spawn_info.total_value += (score as f32 + 1.0).log2();   
-                    } else {
-                        unreachable!();
-                    }
+                    spawn_info.total_value += (score as f32 +1.0).log2();
                 },
                 _ => (),
             }
@@ -514,7 +525,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.greedy_simulation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.parallel_greedy_simulation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }

@@ -70,7 +70,7 @@ pub fn get_best_direction_expectimax(game: &FastGame, grid: [u32; 4], search_dep
         return best_direction;
 }
 
-fn evaluate(grid: [u32; 4]) -> f32 {
+pub fn evaluate(grid: [u32; 4]) -> f32 {
     let flat_grid = FastGame::to_flat_array(grid);
 
     let big_values_infl:f32 = flat_grid.iter().map(|&value| {(1 << value) as f32}).sum();

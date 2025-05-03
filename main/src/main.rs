@@ -1,4 +1,3 @@
-use rand::SeedableRng;
 mod fastgame;
 mod game;
 mod minimax;
@@ -24,7 +23,7 @@ const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
 const MCTS_TIME_LIMIT: f32 = 0.01;
-const MCTS_ITERATION_LIMIT: usize = 1_000_000;
+const MCTS_ITERATION_LIMIT: usize = 1_000_000_000;
 
 fn main() {
     // Ask user for playing / training / ai mode
