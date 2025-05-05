@@ -1,6 +1,5 @@
 use crate::fastgame;
 use crate::game;
-use crate::minimax;
 use rand::Rng;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -23,7 +22,7 @@ struct Node {
     // Additional information for score/display
     move_number: usize,
     score: u32,
-    highest_tile: u8,
+    _highest_tile: u8,
 }
 #[derive(Clone)]
 enum TypeInfo {
@@ -48,7 +47,7 @@ pub struct MonteCarloTree {
     nodes: RefCell<Vec<Node>>,
     generation_iteration_count: usize,
     inherited_node_count: usize,
-    highest_tile_seen: u8,
+    _highest_tile_seen: u8,
 }
 
 const EXPLORATION_CONSTANT:f32 = 1.4142;
@@ -65,15 +64,15 @@ impl MonteCarloTree {
             specific_information: TypeInfo::Move(MoveInfo { actions_left: possible_directions, probability: 1.0 }),
             move_number: 0,
             score: 0,
-            highest_tile: *fastgame::FastGame::to_flat_array(root_state).iter().max().unwrap()
+            _highest_tile: *fastgame::FastGame::to_flat_array(root_state).iter().max().unwrap()
         };
-        Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, highest_tile_seen: 0, inherited_node_count: 0}
+        Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, _highest_tile_seen: 0, inherited_node_count: 0}
     }
 
     #[time_graph::instrument]
     fn exploration_function(&self) -> f32 {
         let root = self.nodes.borrow()[0].clone();
-        return (root.score as f32 +1.0).log2();
+        return (root.score as f32 + 1.0).log2();
     }
 
     #[time_graph::instrument]
@@ -142,7 +141,7 @@ impl MonteCarloTree {
                 specific_information: TypeInfo::Move(MoveInfo { actions_left: possible_directions, probability: 1.0 }),
                 move_number: old_root.move_number + 1,
                 score: old_root.score + gained_score,
-                highest_tile: *fastgame::FastGame::to_flat_array(new_root_state).iter().max().unwrap()
+                _highest_tile: *fastgame::FastGame::to_flat_array(new_root_state).iter().max().unwrap()
             };
             new_nodes.push(new_node);
         }
@@ -265,7 +264,7 @@ impl MonteCarloTree {
                     }),
                     move_number: node.move_number,
                     score: node.score,
-                    highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
+                    _highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
                 };
             },
             TypeInfo::Move(ref mut move_info) => {
@@ -289,7 +288,7 @@ impl MonteCarloTree {
                     }),
                     move_number: node.move_number + 1,
                     score: node.score + move_score,
-                    highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
+                    _highest_tile: *fastgame::FastGame::to_flat_array(new_child_state).iter().max().unwrap(),
                 }
             },
         }
@@ -505,7 +504,7 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    spawn_info.total_value += (score as f32 +1.0).log2();
+                    spawn_info.total_value += (score as f32 + 1.0).log2();
                 },
                 _ => (),
             }
@@ -525,7 +524,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.parallel_greedy_simulation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.greedy_simulation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }
@@ -564,7 +563,7 @@ impl MonteCarloTree {
                 let child = &self.nodes.borrow()[*child_index];
                 match &child.specific_information {
                     TypeInfo::Spawn(spawn_info) => {
-                        (spawn_info.total_value / child.visit_count as f32, spawn_info.move_made.clone())
+                        (spawn_info.total_value, spawn_info.move_made.clone())
                     },
                     _ => unreachable!(),
                 }
@@ -572,25 +571,5 @@ impl MonteCarloTree {
             .max_by(|a,b| a.0.partial_cmp(&b.0).expect("Could not order moves"))
             .map(|(_, direction)| direction)
             .expect("Could not choose best direction");
-    }
-    pub fn grow_root_children_only(&mut self, fast: &fastgame::FastGame, time_limit: f32, iteration_limit: usize) {
-        let mut rng = SmallRng::from_rng(&mut rand::rng());
-        let time_limit = Duration::from_secs_f32(time_limit);
-        let start_time = std::time::Instant::now();
-        let start_iteration_count = self.generation_iteration_count;
-        let mut iterations = 0;
-        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
-            let root_node = &self.nodes.borrow()[0].clone();
-            let selected_node_index;
-            if match &root_node.specific_information {TypeInfo::Move(info) => !info.actions_left.is_empty(), _ => false} || root_node.children_indices.is_empty() {
-                selected_node_index = self.expansion(&fast, 0, &mut rng);
-            } else {
-                selected_node_index = root_node.children_indices[rng.random_range(0..root_node.children_indices.len())];
-            }
-            let rollout_info = self.random_simulation(&fast, selected_node_index, &mut rng);
-            self.backpropagation(selected_node_index, rollout_info);
-            iterations += 1;
-        }
-        self.generation_iteration_count += iterations;
     }
 }
