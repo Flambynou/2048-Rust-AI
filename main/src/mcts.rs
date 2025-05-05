@@ -47,7 +47,6 @@ pub struct MonteCarloTree {
     nodes: RefCell<Vec<Node>>,
     generation_iteration_count: usize,
     inherited_node_count: usize,
-    _highest_tile_seen: u8,
 }
 
 const EXPLORATION_CONSTANT:f32 = 1.4142;
@@ -66,7 +65,7 @@ impl MonteCarloTree {
             score: 0,
             _highest_tile: *fastgame::FastGame::to_flat_array(root_state).iter().max().unwrap()
         };
-        Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, _highest_tile_seen: 0, inherited_node_count: 0}
+        Self { nodes: RefCell::new(vec![rootnode]), generation_iteration_count: 0, inherited_node_count: 0}
     }
 
     #[time_graph::instrument]

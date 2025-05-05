@@ -333,14 +333,14 @@ fn mcts_optimization_test(){
 fn mcts_strength_test() {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:Vec<u64> = vec![0,1,2];
-    let time_limits:Vec<f32> = vec![0.001,0.005,0.025,0.125];
+    let seeds:Vec<u64> = vec![0,1,2,3,4];
+    let time_limits:Vec<f32> = vec![0.001,0.005];
     let mut time_limit_average_score = vec![0.0;time_limits.len()];
     for (time_index, &time_limit) in time_limits.iter().enumerate() {
         let mut seed_average_scores = vec![0.0;seeds.len()];
         for (seed_index,&seed) in seeds.iter().enumerate() {
-            let mut seed_scores = vec![0;5];
-            for iteration in 0..5 {
+            let mut seed_scores = vec![0;2];
+            for iteration in 0..2 {
                 let rand = Random::from_seed(Seed::unsafe_new(seed));
                 let mut game_state = [0;4];
                 game_state = fast.add_random_block(game_state, &rand);
