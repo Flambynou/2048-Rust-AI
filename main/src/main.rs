@@ -5,12 +5,10 @@ mod neural_network;
 mod population;
 mod renderer;
 mod mcts;
-
-
-
 use fastgame::FastGame;
 use seeded_random::{Random, Seed};
 use std::path::Path;
+use rayon::prelude::*;
 const GRID_SIZE: usize = 4;
 
 const POPULATION_SIZE: usize = 2000;
@@ -49,7 +47,7 @@ fn main() {
         "6" => use_mini_expecti_max(false),
         "7" => use_mcts(),
         "8" => mcts_optimization_test(),
-        "9" => mcts_strength_test(),
+        "9" => mcts_strength_test(true),
         _ => println!("Invalid mode"),
     }
 }
@@ -330,41 +328,72 @@ fn mcts_optimization_test(){
     println!("{}", graph.as_table());
 }
 
-fn mcts_strength_test() {
+fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
     let seeds:Vec<u64> = vec![0,1,2,3,4];
-    let time_limits:Vec<f32> = vec![0.001,0.005];
+    let time_limits:Vec<f32> = vec![0.001,0.005,0.025,0.125];
+    let iteration_count = 5;
     let mut time_limit_average_score = vec![0.0;time_limits.len()];
-    for (time_index, &time_limit) in time_limits.iter().enumerate() {
-        let mut seed_average_scores = vec![0.0;seeds.len()];
-        for (seed_index,&seed) in seeds.iter().enumerate() {
-            let mut seed_scores = vec![0;2];
-            for iteration in 0..2 {
-                let rand = Random::from_seed(Seed::unsafe_new(seed));
-                let mut game_state = [0;4];
-                game_state = fast.add_random_block(game_state, &rand);
-                game_state = fast.add_random_block(game_state, &rand);
-                //game_state = [163840,229376,327680,427008];
-                let mut game_score = 0;
-                let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
-                loop {
-                    mcts.grow_tree(&fast, time_limit, usize::max_value());
-                    let best_direction = mcts.get_best_direction();
-                    let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
-                    game_score += move_score;
-                    game_state = new_game_state;
-                    if fast.is_lost(&game_state) {
-                        seed_scores[iteration] = game_score;
-                        println!("Finnished simulation with time limit {}, seed {}, iteration {}. Reached score {}", time_limit, seed, iteration, game_score);
-                        break;
+    if parallel {
+        time_limit_average_score = time_limits.par_iter().map(|&time_limit| {
+            let seed_average_scores: Vec<_> = seeds.par_iter().map(|&seed| {
+                let seed_scores: Vec<_> = (0..iteration_count).into_par_iter().map(|iteration| {
+                    let rand = Random::from_seed(Seed::unsafe_new(seed));
+                    let mut game_state = [0; 4];
+                    game_state = fast.add_random_block(game_state, &rand);
+                    game_state = fast.add_random_block(game_state, &rand);
+                    let mut game_score = 0;
+                    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
+                    loop {
+                        mcts.grow_tree(&fast, time_limit, usize::max_value());
+                        let best_direction = mcts.get_best_direction();
+                        let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
+                        game_score += move_score;
+                        game_state = new_game_state;
+                        if fast.is_lost(&game_state) {
+                            println!("Finished simulation with time limit {}, seed {}, iteration {}. Reached score {}", 
+                                   time_limit, seed, iteration, game_score);
+                            return game_score;
+                        }
+                        mcts.reroot(&fast, move_score, game_state);
                     }
-                    mcts.reroot(&fast, move_score, game_state);
+                }).collect();
+                seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32
+            }).collect();
+            seed_average_scores.iter().sum::<f32>() / seed_average_scores.len() as f32
+        }).collect();
+    } else {
+        for (time_index, &time_limit) in time_limits.iter().enumerate() {
+            let mut seed_average_scores = vec![0.0;seeds.len()];
+            for (seed_index,&seed) in seeds.iter().enumerate() {
+                let mut seed_scores = vec![0;2];
+                for iteration in 0..2 {
+                    let rand = Random::from_seed(Seed::unsafe_new(seed));
+                    let mut game_state = [0;4];
+                    game_state = fast.add_random_block(game_state, &rand);
+                    game_state = fast.add_random_block(game_state, &rand);
+                    //game_state = [163840,229376,327680,427008];
+                    let mut game_score = 0;
+                    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
+                    loop {
+                        mcts.grow_tree(&fast, time_limit, usize::max_value());
+                        let best_direction = mcts.get_best_direction();
+                        let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
+                        game_score += move_score;
+                        game_state = new_game_state;
+                        if fast.is_lost(&game_state) {
+                            seed_scores[iteration] = game_score;
+                            println!("Finnished simulation with time limit {}, seed {}, iteration {}. Reached score {}", time_limit, seed, iteration, game_score);
+                            break;
+                        }
+                        mcts.reroot(&fast, move_score, game_state);
+                    }
                 }
+                seed_average_scores[seed_index] = seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32;
             }
-            seed_average_scores[seed_index] = seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32;
+            time_limit_average_score[time_index] = seed_average_scores.iter().sum::<f32>() / seed_average_scores.len() as f32;
         }
-        time_limit_average_score[time_index] = seed_average_scores.iter().sum::<f32>() / seed_average_scores.len() as f32;
     }
     println!(" Time limits : {:?}", time_limits);
     println!("Average score: {:?}", time_limit_average_score);
