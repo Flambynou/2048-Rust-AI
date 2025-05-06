@@ -193,7 +193,7 @@ impl MonteCarloTree {
                     children_normalized_scores[index] +  exploration_factor / child_visit_count.sqrt()
                 })
                 .collect();
-                /* Without min-max normalization :
+                /*/ Without min-max normalization :
                 children_scores = node.children_indices.iter()
                     .map(|child_index| {
                         let child = &self.nodes.borrow()[*child_index];
@@ -201,10 +201,9 @@ impl MonteCarloTree {
                             TypeInfo::Spawn(spawn_info) => (spawn_info.total_value / child.visit_count as f32, child.visit_count as f32),
                             TypeInfo::Move(_) => unreachable!(),
                         };
-                        avg_score + exploration_factor / visit_count.sqrt()
+                        avg_score + self.exploration_function() * exploration_factor / visit_count.sqrt()
                     })
-                    .collect();
-                */
+                    .collect();*/
             }
         };
         let highest_score_children = children_scores.iter()
@@ -447,7 +446,7 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    spawn_info.total_value += move_count as f32;
+                    spawn_info.total_value += move_count as f32 * *fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32;
                 },
                 _ => (),
             }
@@ -464,7 +463,7 @@ impl MonteCarloTree {
         let start_time = std::time::Instant::now();
         let start_iteration_count = self.generation_iteration_count;
         let mut iterations = 0;
-        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count < iteration_limit {
+        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
             let rollout_info = self.greedy_simulation(&fast, chosen_node_index, &mut rng);

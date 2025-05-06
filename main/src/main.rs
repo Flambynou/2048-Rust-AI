@@ -20,8 +20,8 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.01;
-const MCTS_ITERATION_LIMIT: usize = 1_000_000_000;
+const MCTS_TIME_LIMIT: f32 = 0.05;
+const MCTS_ITERATION_LIMIT: usize = 1_000_000_000_000;
 
 fn main() {
     // Ask user for playing / training / ai mode
@@ -331,15 +331,15 @@ fn mcts_optimization_test(){
 fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:Vec<u64> = vec![0,1,2,3,4,5,6,7,8,9];
-    let time_limits:Vec<f32> = vec![0.01];
+    let seeds:[usize;5] = core::array::from_fn(|i| i + 1);
+    let time_limits:Vec<f32> = vec![0.05];
     let iteration_count = 5;
     let mut time_limit_average_score = vec![0.0;time_limits.len()];
     if parallel {
         time_limit_average_score = time_limits.par_iter().map(|&time_limit| {
             let seed_average_scores: Vec<_> = seeds.par_iter().map(|&seed| {
                 let seed_scores: Vec<_> = (0..iteration_count).into_par_iter().map(|iteration| {
-                    let rand = Random::from_seed(Seed::unsafe_new(seed));
+                    let rand = Random::from_seed(Seed::unsafe_new(seed as u64));
                     let mut game_state = [0; 4];
                     game_state = fast.add_random_block(game_state, &rand);
                     game_state = fast.add_random_block(game_state, &rand);

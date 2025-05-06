@@ -105,7 +105,7 @@ impl NeuralNetwork {
         file.write_all(
             ACTIVATION_FUNCTIONS
                 .iter()
-                .position(|&x| x == self.activation_func_hidden)
+                .position(|&x| std::ptr::fn_addr_eq(x, self.activation_func_hidden))
                 .unwrap()
                 .to_string()
                 .as_bytes(),
@@ -115,7 +115,7 @@ impl NeuralNetwork {
         file.write_all(
             ACTIVATION_FUNCTIONS
                 .iter()
-                .position(|&x| x == self.activation_func_output)
+                .position(|&x| std::ptr::fn_addr_eq(x, self.activation_func_output))
                 .unwrap()
                 .to_string()
                 .as_bytes(),
