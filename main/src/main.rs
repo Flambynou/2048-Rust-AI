@@ -331,8 +331,8 @@ fn mcts_optimization_test(){
 fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:Vec<u64> = vec![0,1,2,3,4];
-    let time_limits:Vec<f32> = vec![0.001,0.005,0.025,0.125];
+    let seeds:Vec<u64> = vec![0,1,2,3,4,5,6,7,8,9];
+    let time_limits:Vec<f32> = vec![0.01];
     let iteration_count = 5;
     let mut time_limit_average_score = vec![0.0;time_limits.len()];
     if parallel {
@@ -361,7 +361,7 @@ fn mcts_strength_test(parallel:bool) {
                 }).collect();
                 seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32
             }).collect();
-            seed_average_scores.iter().sum::<f32>() / seed_average_scores.len() as f32
+            (seed_average_scores.iter().map(|number| number.ln()).sum::<f32>() / seed_average_scores.len() as f32).exp()
         }).collect();
     } else {
         for (time_index, &time_limit) in time_limits.iter().enumerate() {
@@ -392,7 +392,7 @@ fn mcts_strength_test(parallel:bool) {
                 }
                 seed_average_scores[seed_index] = seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32;
             }
-            time_limit_average_score[time_index] = seed_average_scores.iter().sum::<f32>() / seed_average_scores.len() as f32;
+            time_limit_average_score[time_index] = (seed_average_scores.iter().map(|number| number.ln()).sum::<f32>() / seed_average_scores.len() as f32).exp()
         }
     }
     println!(" Time limits : {:?}", time_limits);
