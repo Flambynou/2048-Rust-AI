@@ -13,14 +13,14 @@ const GRID_SIZE: usize = 4;
 
 const POPULATION_SIZE: usize = 2000;
 
-const SEED: u64 = 10;
+const SEED: u64 = 0;
 
 
 const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.05;
+const MCTS_TIME_LIMIT: f32 = 0.01;
 const MCTS_ITERATION_LIMIT: usize = 1_000_000_000_000;
 
 fn main() {
@@ -47,7 +47,8 @@ fn main() {
         "6" => use_mini_expecti_max(false),
         "7" => use_mcts(),
         "8" => mcts_optimization_test(),
-        "9" => mcts_strength_test(true),
+        "9" => mcts_strength_test(false),
+        "10" => rollout_verification(),
         _ => println!("Invalid mode"),
     }
 }
@@ -331,9 +332,9 @@ fn mcts_optimization_test(){
 fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:[usize;5] = core::array::from_fn(|i| i + 1);
-    let time_limits:Vec<f32> = vec![0.05];
-    let iteration_count = 5;
+    let seeds:[usize;25] = core::array::from_fn(|i| i + 1);
+    let time_limits:Vec<f32> = vec![0.001];
+    let iteration_count = 1;
     let mut time_limit_average_score = vec![0.0;time_limits.len()];
     if parallel {
         time_limit_average_score = time_limits.par_iter().map(|&time_limit| {
@@ -359,17 +360,17 @@ fn mcts_strength_test(parallel:bool) {
                         mcts.reroot(&fast, move_score, game_state);
                     }
                 }).collect();
-                seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32
+                seed_scores.iter().map(|score| (*score as f32).ln()).sum::<f32>()
             }).collect();
-            (seed_average_scores.iter().map(|number| number.ln()).sum::<f32>() / seed_average_scores.len() as f32).exp()
+            (seed_average_scores.iter().sum::<f32>() / (seeds.len() * iteration_count) as f32).exp()
         }).collect();
     } else {
         for (time_index, &time_limit) in time_limits.iter().enumerate() {
             let mut seed_average_scores = vec![0.0;seeds.len()];
             for (seed_index,&seed) in seeds.iter().enumerate() {
-                let mut seed_scores = vec![0;2];
-                for iteration in 0..2 {
-                    let rand = Random::from_seed(Seed::unsafe_new(seed));
+                let mut seed_scores = vec![0;iteration_count];
+                for iteration in 0..iteration_count {
+                    let rand = Random::from_seed(Seed::unsafe_new(seed as u64));
                     let mut game_state = [0;4];
                     game_state = fast.add_random_block(game_state, &rand);
                     game_state = fast.add_random_block(game_state, &rand);
@@ -390,13 +391,40 @@ fn mcts_strength_test(parallel:bool) {
                         mcts.reroot(&fast, move_score, game_state);
                     }
                 }
-                seed_average_scores[seed_index] = seed_scores.iter().sum::<u32>() as f32 / seed_scores.len() as f32;
+                seed_average_scores[seed_index] = seed_scores.iter().map(|score| (*score as f32).ln()).sum::<f32>();
             }
-            time_limit_average_score[time_index] = (seed_average_scores.iter().map(|number| number.ln()).sum::<f32>() / seed_average_scores.len() as f32).exp()
+            time_limit_average_score[time_index] = (seed_average_scores.iter().sum::<f32>() / (seeds.len() * iteration_count) as f32).exp()
         }
     }
     println!(" Time limits : {:?}", time_limits);
     println!("Average score: {:?}", time_limit_average_score);
+}
+
+fn rollout_verification() {
+    // Test rollouts
+    time_graph::enable_data_collection(true);
+    let fast = fastgame::FastGame::new();
+    let rand = Random::from_seed(Seed::unsafe_new(SEED));
+    let mut game_state = [0;4];
+    game_state = fast.add_random_block(game_state, &rand);
+    game_state = fast.add_random_block(game_state, &rand);
+    //game_state = [163840,229376,327680,427008];
+    let mut game_score = 0;
+    renderer::render(FastGame::to_flat_array(game_state));
+    println!("Score: {:?}", game_score);
+    let start_time = std::time::Instant::now();
+    let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
+    mcts.grow_tree(&fast, 5.0, 1);
+    let best_direction = mcts.get_best_direction();
+    let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
+    game_score += move_score;
+    game_state = new_game_state;
+    println!("Score: {:?}", game_score);
+    println!("Time spent since the begining of the game : {:?}", std::time::Instant::now() - start_time);
+    mcts.get_info(&best_direction);
+    mcts.reroot(&fast, move_score, game_state);
+    let graph = time_graph::get_full_graph();
+    println!("{}", graph.as_table());
 }
 
 

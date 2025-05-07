@@ -1,5 +1,5 @@
-use crate::fastgame;
-use crate::game;
+use crate::{fastgame, minimax};
+use crate::game::{self};
 use rand::Rng;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
@@ -32,6 +32,7 @@ struct SpawnInfo {
     two_block_spawns_left: Vec<(usize,usize)>,
     four_block_spawns_left: Vec<(usize,usize)>,
     total_value: f32,
+    total_squares: f32,
 }
 #[derive(Clone)]
 struct MoveInfo {
@@ -46,7 +47,9 @@ pub struct MonteCarloTree {
     inherited_node_count: usize,
 }
 
-const EXPLORATION_CONSTANT:f32 = 12.0;
+const EXPLORATION_CONSTANT:f32 = 3.5;
+//const POWER_MEAN_PARAMETER:f32 = 2.0;
+const VARIANCE_CONSTANT:f32 = 0.05;
 impl MonteCarloTree {
     #[time_graph::instrument]
     pub fn new(fast: &fastgame::FastGame, root_state:[u32;4]) -> Self {
@@ -170,27 +173,31 @@ impl MonteCarloTree {
                     return node_index;
                 }
                 let exploration_factor = EXPLORATION_CONSTANT * (node.visit_count as f32).ln().sqrt();
-                let children_scores_visitcounts:Vec<(f32,f32)> = node.children_indices.iter().map(|child_index|{
+                let children_scores_squares_visitcounts:Vec<(f32,f32,f32)> = node.children_indices.iter().map(|child_index|{
                     let child = &self.nodes.borrow()[*child_index];
                     match &child.specific_information {
-                        TypeInfo::Spawn(spawn_info) => (spawn_info.total_value,child.visit_count as f32),
+                        TypeInfo::Spawn(spawn_info) => (spawn_info.total_value,spawn_info.total_squares,child.visit_count as f32),
                         TypeInfo::Move(_) => unreachable!("Move is a child of move"),
                         }
                 })
                 .collect();
-                let children_average_scores:Vec<f32> = children_scores_visitcounts.iter().map(|(score,visit_count)| score / visit_count).collect();
-                let children_visitcounts:Vec<f32> = children_scores_visitcounts.iter().map(|(_,visit_count)| *visit_count).collect();
+                let children_average_scores:Vec<f32> = children_scores_squares_visitcounts.iter().map(|(score,_,visit_count)| (score / visit_count)).collect();
+                let children_visitcounts:Vec<f32> = children_scores_squares_visitcounts.iter().map(|(_,_,visit_count)| *visit_count).collect();
                 // Normalize the children average scores with local min-max normalization
                 let min_child_score:f32 = *children_average_scores.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
                 let max_child_score:f32 = *children_average_scores.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-                let children_score_variance:f32 = max_child_score - min_child_score + 1.0; // Add 1 to avoid division by 0
+                let children_score_variance:f32 = (max_child_score - min_child_score).max(1.0); // Add 1 to avoid division by 0
                 let children_normalized_scores:Vec<f32> = children_average_scores.iter().map(|average_score|{
                     (average_score - min_child_score) / children_score_variance
                 })
                 .collect();
+                let children_normalized_variance:Vec<f32> = children_scores_squares_visitcounts.iter().map(|(totalscore,totalsquares,visitcount)| {
+                    let raw_var:f32 = (totalsquares/visitcount) - (totalscore/visitcount).powf(2.0);
+                    raw_var / children_score_variance.powf(2.0)
+                }).collect();
                 // Get the children's uct scores with their normalized scores
                 children_scores = children_visitcounts.iter().enumerate().map(|(index, child_visit_count)| {
-                    children_normalized_scores[index] +  exploration_factor / child_visit_count.sqrt()
+                    children_normalized_scores[index] +  (exploration_factor + VARIANCE_CONSTANT * children_normalized_variance[index]) / child_visit_count.sqrt()
                 })
                 .collect();
                 /*/ Without min-max normalization :
@@ -299,6 +306,7 @@ impl MonteCarloTree {
                         two_block_spawns_left: new_child_two_spawns,
                         four_block_spawns_left: new_child_four_spawns,
                         total_value: 0.0,
+                        total_squares: 0.0,
                     }),
                     move_number: node.move_number + 1,
                     score: node.score + move_score,
@@ -439,6 +447,86 @@ impl MonteCarloTree {
     }
 
     #[time_graph::instrument]
+    fn not_worst_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
+        let node = &self.nodes.borrow()[node_index];
+        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
+        let mut score = starting_score;
+        let mut move_number = starting_move_number;
+        match &node.specific_information {
+            TypeInfo::Spawn(_) => {
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+            }
+            _ => ()
+        }
+        loop {
+            let mut possible_directions = fast.get_possible_directions(&game_state);
+            let (new_game_state,move_score) = match possible_directions.len() {
+                0 => break,
+                1 => fast.make_move(&game_state, &possible_directions[0]),
+                _ => {
+                    possible_directions.shuffle(rng);
+                    let worst_move = possible_directions.iter().clone().map(|direction| {
+                        let (_, move_score) = fast.make_move(&game_state, &direction);
+                        (direction, move_score)
+                    })
+                    .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .unwrap().0;
+                    let other_random_direction = possible_directions.iter().filter(|direction| direction != &worst_move).collect::<Vec<_>>()[0];
+                    fast.make_move(&game_state, other_random_direction)
+                }
+            };
+            game_state = new_game_state;
+            score += move_score;
+            move_number += 1;
+            let empty_list = fastgame::FastGame::empty_list(&game_state);
+            let exponent = if rng.random_bool(0.9) {1} else {2};
+            let coords = empty_list[rng.random_range(0..empty_list.len())];
+            game_state = fast.place_block(game_state, coords, exponent);
+        }
+        return (game_state,move_number,score);
+    }
+    #[time_graph::instrument]
+    fn expectimax_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
+        let node = &self.nodes.borrow()[node_index];
+        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
+        let mut score = starting_score;
+        let mut move_number = starting_move_number;
+        match &node.specific_information {
+            TypeInfo::Spawn(_) => {
+                let empty_list = fastgame::FastGame::empty_list(&game_state);
+                let exponent = if rng.random_bool(0.9) {1} else {2};
+                let coords = empty_list[rng.random_range(0..empty_list.len())];
+                game_state = fast.place_block(game_state, coords, exponent);
+            }
+            _ => ()
+        }
+        loop {
+            let possible_directions = fast.get_possible_directions(&game_state);
+            if possible_directions.is_empty() {break}
+            let best_direction = minimax::get_best_direction_expectimax(fast, game_state, 1);
+            let (new_game_state,move_score) = fast.make_move(&game_state, &best_direction);
+            game_state = new_game_state;
+            score += move_score;
+            move_number += 1;
+            let empty_list = fastgame::FastGame::empty_list(&game_state);
+            let exponent = if rng.random_bool(0.9) {1} else {2};
+            let coords = empty_list[rng.random_range(0..empty_list.len())];
+            game_state = fast.place_block(game_state, coords, exponent);
+        }
+        return (game_state,move_number,score);
+    }
+
+    #[time_graph::instrument]
+    fn heuristic_evaluation(&self, _fast: &fastgame::FastGame, node_index: usize, _rng: &mut SmallRng) -> ([u32;4],usize,u32) {
+        let node = &self.nodes.borrow()[node_index];
+        let game_state = node.game_state; 
+        return ([0;4],minimax::evaluate(game_state) as usize,0)
+    }
+
+    #[time_graph::instrument]
     fn backpropagation(&mut self, node_index: usize, (game_state, move_count, score): ([u32;4],usize,u32)) {
         let parent_index = {
             let mut nodes = self.nodes.borrow_mut();
@@ -446,10 +534,12 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    spawn_info.total_value += move_count as f32 * *fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32;
+                    let computed_score = move_count as f32 * (*fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32).max(1.0);
+                    spawn_info.total_value += computed_score;
+                    spawn_info.total_squares += computed_score.powf(2.0)
                 },
                 _ => (),
-            }
+            };
             node.parent_index
         };
         if let Some(parent_index) = parent_index {
@@ -466,7 +556,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.greedy_simulation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.heuristic_evaluation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }
@@ -478,13 +568,13 @@ impl MonteCarloTree {
         let node_count = nodes.len();
         let iteration_count = self.generation_iteration_count;
         let root_children = &nodes[0].children_indices;
-        let mut expected_score = 0.0;
+        let mut expected_node_value = 0.0;
         for child_index in root_children {
             let child = &nodes[*child_index];
             match &child.specific_information {
                 TypeInfo::Spawn(spawn_info) => {
                     if &spawn_info.move_made == best_direction {
-                        expected_score = spawn_info.total_value / child.visit_count as f32;
+                        expected_node_value = spawn_info.total_value / child.visit_count as f32;
                     }
                 },
                 _ => unreachable!("Move is a child of spawn"),
@@ -493,7 +583,7 @@ impl MonteCarloTree {
         let move_number = nodes[0].move_number;
         println!("Number of nodes: {}",node_count);
         println!("Iterations: {}", iteration_count);
-        println!("Expected moves: {}", expected_score);
+        println!("Expected node value: {}", expected_node_value);
         println!("Move number: {}", move_number);
         println!("Nodes inherited: {}", self.inherited_node_count);
     }
@@ -512,6 +602,6 @@ impl MonteCarloTree {
             })
             .max_by(|a,b| a.0.partial_cmp(&b.0).expect("Could not order moves"))
             .map(|(_, direction)| direction)
-            .expect("Could not choose best direction");
+            .unwrap_or(game::Direction::None);
     }
 }
