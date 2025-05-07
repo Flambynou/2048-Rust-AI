@@ -520,13 +520,6 @@ impl MonteCarloTree {
     }
 
     #[time_graph::instrument]
-    fn heuristic_evaluation(&self, _fast: &fastgame::FastGame, node_index: usize, _rng: &mut SmallRng) -> ([u32;4],usize,u32) {
-        let node = &self.nodes.borrow()[node_index];
-        let game_state = node.game_state; 
-        return ([0;4],minimax::evaluate(game_state) as usize,0)
-    }
-
-    #[time_graph::instrument]
     fn backpropagation(&mut self, node_index: usize, (game_state, move_count, score): ([u32;4],usize,u32)) {
         let parent_index = {
             let mut nodes = self.nodes.borrow_mut();
@@ -534,7 +527,7 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    let computed_score = move_count as f32 * (*fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32).max(1.0);
+                    let computed_score = move_count as f32 * minimax::evaluate(node.game_state) * (*fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32).max(1.0);
                     spawn_info.total_value += computed_score;
                     spawn_info.total_squares += computed_score.powf(2.0)
                 },
@@ -556,7 +549,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.heuristic_evaluation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.random_simulation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }
