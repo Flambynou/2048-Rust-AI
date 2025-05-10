@@ -1,4 +1,4 @@
-use crate::{fastgame, minimax};
+use crate::{fastgame};
 use crate::game::{self};
 use rand::Rng;
 use rand::rngs::SmallRng;
@@ -488,36 +488,6 @@ impl MonteCarloTree {
         }
         return (game_state,move_number,score);
     }
-    #[time_graph::instrument]
-    fn expectimax_simulation(&self, fast: &fastgame::FastGame, node_index: usize, rng: &mut SmallRng) -> ([u32;4],usize,u32) {
-        let node = &self.nodes.borrow()[node_index];
-        let (mut game_state, starting_score, starting_move_number) = (node.game_state, node.score, node.move_number);
-        let mut score = starting_score;
-        let mut move_number = starting_move_number;
-        match &node.specific_information {
-            TypeInfo::Spawn(_) => {
-                let empty_list = fastgame::FastGame::empty_list(&game_state);
-                let exponent = if rng.random_bool(0.9) {1} else {2};
-                let coords = empty_list[rng.random_range(0..empty_list.len())];
-                game_state = fast.place_block(game_state, coords, exponent);
-            }
-            _ => ()
-        }
-        loop {
-            let possible_directions = fast.get_possible_directions(&game_state);
-            if possible_directions.is_empty() {break}
-            let best_direction = minimax::get_best_direction_expectimax(fast, game_state, 1);
-            let (new_game_state,move_score) = fast.make_move(&game_state, &best_direction);
-            game_state = new_game_state;
-            score += move_score;
-            move_number += 1;
-            let empty_list = fastgame::FastGame::empty_list(&game_state);
-            let exponent = if rng.random_bool(0.9) {1} else {2};
-            let coords = empty_list[rng.random_range(0..empty_list.len())];
-            game_state = fast.place_block(game_state, coords, exponent);
-        }
-        return (game_state,move_number,score);
-    }
 
     #[time_graph::instrument]
     fn backpropagation(&mut self, node_index: usize, (game_state, move_count, score): ([u32;4],usize,u32)) {
@@ -527,7 +497,7 @@ impl MonteCarloTree {
             node.visit_count += 1;
             match node.specific_information {
                 TypeInfo::Spawn(ref mut spawn_info) => {
-                    let computed_score = move_count as f32 * minimax::evaluate(node.game_state) * (*fastgame::FastGame::to_flat_array(game_state).iter().max().unwrap() as f32).max(1.0);
+                    let computed_score = score as f32;
                     spawn_info.total_value += computed_score;
                     spawn_info.total_squares += computed_score.powf(2.0)
                 },
@@ -546,10 +516,10 @@ impl MonteCarloTree {
         let start_time = std::time::Instant::now();
         let start_iteration_count = self.generation_iteration_count;
         let mut iterations = 0;
-        while Instant::now() - start_time < time_limit && self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
+        while Instant::now() - start_time < time_limit || self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.random_simulation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.not_worst_simulation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }

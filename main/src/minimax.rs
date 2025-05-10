@@ -1,4 +1,4 @@
-use crate::fastgame::FastGame;
+use crate::{fastgame::FastGame, game::is_lost};
 use rayon::prelude::*;
 use crate::game;
 use std::collections::HashMap;
@@ -127,6 +127,29 @@ pub fn evaluate(grid: [u32; 4]) -> f32 {
            + 10.0*big_values_infl
            - 1.0*smoothness_vertical
            - 1.0*smoothness_horizontal;
+}
+
+pub fn _basile_heuristique(grid: [u32; 4]) -> f32 {
+    // First, compute the grid sorted in a zigzag towards the up left
+    let flat_grid = FastGame::to_flat_array(grid);
+    if is_lost(&flat_grid) {return -1000.0}
+    let mut sorted_grid = flat_grid.clone();
+    sorted_grid.sort();
+    sorted_grid.reverse();
+    let zig_zig_index_mapping:[usize;16] = [0,1,2,3,7,6,5,4,8,9,10,11,15,14,13,12];
+    let mut remapped_sorted_grid = [0;16];
+    for (old_index,new_index) in zig_zig_index_mapping.iter().enumerate() {
+        remapped_sorted_grid[old_index] = sorted_grid[*new_index];
+    };
+    // Then, compare the real grid with the sorted grid
+    let mut total_reward = 0.0;
+    for i in 0..16 {
+        let real_value = flat_grid[i];
+        if real_value == sorted_grid[i] {
+            total_reward += (real_value as f32).powf(4.0);
+        } else {break}
+    }
+    return total_reward;
 }
 
 fn minimax(

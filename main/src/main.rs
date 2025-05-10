@@ -20,8 +20,8 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 2;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_TIME_LIMIT: f32 = 0.05;
-const MCTS_ITERATION_LIMIT: usize = 1_000_000_000_000;
+const MCTS_MIN_TIME: f32 = 1.0;
+const MCTS_ITERATION_LIMIT: usize = 100_000;
 
 fn main() {
     // Ask user for playing / training / ai mode
@@ -280,7 +280,7 @@ fn use_mcts(){
     let start_time = std::time::Instant::now();
     let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
     loop {
-        mcts.grow_tree(&fast, MCTS_TIME_LIMIT, MCTS_ITERATION_LIMIT);
+        mcts.grow_tree(&fast, MCTS_MIN_TIME, MCTS_ITERATION_LIMIT);
         let best_direction = mcts.get_best_direction();
         let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
         game_score += move_score;
