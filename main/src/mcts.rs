@@ -47,9 +47,9 @@ pub struct MonteCarloTree {
     inherited_node_count: usize,
 }
 
-const EXPLORATION_CONSTANT:f32 = 3.5;
+const EXPLORATION_CONSTANT:f32 = 5.5;
 //const POWER_MEAN_PARAMETER:f32 = 2.0;
-const VARIANCE_CONSTANT:f32 = 0.05;
+const VARIANCE_CONSTANT:f32 = 0.2;
 impl MonteCarloTree {
     #[time_graph::instrument]
     pub fn new(fast: &fastgame::FastGame, root_state:[u32;4]) -> Self {
@@ -519,7 +519,7 @@ impl MonteCarloTree {
         while Instant::now() - start_time < time_limit || self.generation_iteration_count - start_iteration_count + iterations < iteration_limit {
             let selected_node_index = self.selection(0, &mut rng);
             let chosen_node_index = self.expansion(&fast, selected_node_index, &mut rng);
-            let rollout_info = self.not_worst_simulation(&fast, chosen_node_index, &mut rng);
+            let rollout_info = self.random_simulation(&fast, chosen_node_index, &mut rng);
             self.backpropagation(chosen_node_index, rollout_info);
             iterations += 1;
         }

@@ -17,11 +17,11 @@ const SEED: u64 = 0;
 
 
 const MINIMAX_DEPTH: usize = 15;
-const EXPECTIMAX_DEPTH: usize = 2;
+const EXPECTIMAX_DEPTH: usize = 6;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_MIN_TIME: f32 = 1.0;
-const MCTS_ITERATION_LIMIT: usize = 100_000;
+const MCTS_MIN_TIME: f32 = 0.1;
+const MCTS_ITERATION_LIMIT: usize = 10_000;
 
 fn main() {
     // Ask user for playing / training / ai mode
@@ -47,7 +47,7 @@ fn main() {
         "6" => use_mini_expecti_max(false),
         "7" => use_mcts(),
         "8" => mcts_optimization_test(),
-        "9" => mcts_strength_test(false),
+        "9" => mcts_strength_test(true),
         "10" => rollout_verification(),
         _ => println!("Invalid mode"),
     }
@@ -332,12 +332,12 @@ fn mcts_optimization_test(){
 fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:[usize;25] = core::array::from_fn(|i| i + 1);
-    let time_limits:Vec<f32> = vec![0.001];
+    let seeds:[usize;100] = core::array::from_fn(|i| i + 1);
+    let iteration_limits:Vec<usize> = vec![1000];
     let iteration_count = 1;
-    let mut time_limit_average_score = vec![0.0;time_limits.len()];
+    let mut average_scores = vec![0.0;iteration_limits.len()];
     if parallel {
-        time_limit_average_score = time_limits.par_iter().map(|&time_limit| {
+        average_scores = iteration_limits.par_iter().map(|&limit| {
             let seed_average_scores: Vec<_> = seeds.par_iter().map(|&seed| {
                 let seed_scores: Vec<_> = (0..iteration_count).into_par_iter().map(|iteration| {
                     let rand = Random::from_seed(Seed::unsafe_new(seed as u64));
@@ -347,14 +347,14 @@ fn mcts_strength_test(parallel:bool) {
                     let mut game_score = 0;
                     let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
                     loop {
-                        mcts.grow_tree(&fast, time_limit, usize::max_value());
+                        mcts.grow_tree(&fast, 0.0, limit);
                         let best_direction = mcts.get_best_direction();
                         let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
                         game_score += move_score;
                         game_state = new_game_state;
                         if fast.is_lost(&game_state) {
-                            println!("Finished simulation with time limit {}, seed {}, iteration {}. Reached score {}", 
-                                   time_limit, seed, iteration, game_score);
+                            println!("Finished simulation with iteration limit {}, seed {}, iteration {}. Reached score {}", 
+                                   limit, seed, iteration, game_score);
                             return game_score;
                         }
                         mcts.reroot(&fast, move_score, game_state);
@@ -365,7 +365,7 @@ fn mcts_strength_test(parallel:bool) {
             (seed_average_scores.iter().sum::<f32>() / (seeds.len() * iteration_count) as f32).exp()
         }).collect();
     } else {
-        for (time_index, &time_limit) in time_limits.iter().enumerate() {
+        for (limit_index, &limit) in iteration_limits.iter().enumerate() {
             let mut seed_average_scores = vec![0.0;seeds.len()];
             for (seed_index,&seed) in seeds.iter().enumerate() {
                 let mut seed_scores = vec![0;iteration_count];
@@ -378,14 +378,14 @@ fn mcts_strength_test(parallel:bool) {
                     let mut game_score = 0;
                     let mut mcts = mcts::MonteCarloTree::new(&fast, game_state);
                     loop {
-                        mcts.grow_tree(&fast, time_limit, usize::max_value());
+                        mcts.grow_tree(&fast, 0.0, limit);
                         let best_direction = mcts.get_best_direction();
                         let (new_game_state, move_score) = fast.play_move(game_state, best_direction.clone(), &rand);
                         game_score += move_score;
                         game_state = new_game_state;
                         if fast.is_lost(&game_state) {
                             seed_scores[iteration] = game_score;
-                            println!("Finnished simulation with time limit {}, seed {}, iteration {}. Reached score {}", time_limit, seed, iteration, game_score);
+                            println!("Finnished simulation with iteration limit {}, seed {}, iteration {}. Reached score {}", limit, seed, iteration, game_score);
                             break;
                         }
                         mcts.reroot(&fast, move_score, game_state);
@@ -393,11 +393,11 @@ fn mcts_strength_test(parallel:bool) {
                 }
                 seed_average_scores[seed_index] = seed_scores.iter().map(|score| (*score as f32).ln()).sum::<f32>();
             }
-            time_limit_average_score[time_index] = (seed_average_scores.iter().sum::<f32>() / (seeds.len() * iteration_count) as f32).exp()
+            average_scores[limit_index] = (seed_average_scores.iter().sum::<f32>() / (seeds.len() * iteration_count) as f32).exp()
         }
     }
-    println!(" Time limits : {:?}", time_limits);
-    println!("Average score: {:?}", time_limit_average_score);
+    println!("Iteration limits : {:?}", iteration_limits);
+    println!("Average score    : {:?}", average_scores);
 }
 
 fn rollout_verification() {

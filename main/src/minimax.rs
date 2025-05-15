@@ -2,6 +2,9 @@ use crate::{fastgame::FastGame, game::is_lost};
 use rayon::prelude::*;
 use crate::game;
 use std::collections::HashMap;
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
+use rand::Rng;
 
 struct TTEntryMini {
         depth: usize,
@@ -127,6 +130,30 @@ pub fn evaluate(grid: [u32; 4]) -> f32 {
            + 10.0*big_values_infl
            - 1.0*smoothness_vertical
            - 1.0*smoothness_horizontal;
+}
+fn _evaluate_rollout(fast:&FastGame, grid: [u32;4]) -> f32 {
+    // Try to evaluate by doing a single rollout from the starting grid
+    let mut rng = SmallRng::from_rng(&mut rand::rng());
+    let mut game_state = grid;
+    let mut score = 0;
+    let mut _move_number = 0;
+    loop {
+        let possible_directions = fast.get_possible_directions(&game_state);
+        let direction_number = possible_directions.len();
+        if direction_number == 0 {break};
+        let (new_game_state,move_score) = {
+            let random_direction_index = rng.random_range(0..direction_number);
+            fast.make_move(&game_state, &possible_directions[random_direction_index])
+        };
+        game_state = new_game_state;
+        score += move_score;
+        let empty_list = FastGame::empty_list(&game_state);
+        let exponent = if rng.random_bool(0.9) {1} else {2};
+        let coords = empty_list[rng.random_range(0..empty_list.len())];
+        game_state = fast.place_block(game_state, coords, exponent);
+        _move_number += 1;
+    }
+    return score as f32;
 }
 
 pub fn _basile_heuristique(grid: [u32; 4]) -> f32 {
