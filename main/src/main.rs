@@ -20,11 +20,11 @@ const MINIMAX_DEPTH: usize = 15;
 const EXPECTIMAX_DEPTH: usize = 6;
 // MCTS will search until either the time or iteration limit is reached
 // Time limit for MCTS simulation in seconds
-const MCTS_MIN_TIME: f32 = 0.1;
-const MCTS_ITERATION_LIMIT: usize = 10_000;
+const MCTS_MIN_TIME: f32 = 0.01;
+const MCTS_ITERATION_LIMIT: usize = 100;
 
 fn main() {
-    // Ask user for playing / training / ai mode
+    // Ask user to choose the mode
     println!("Choose a mode :");
     println!("1. Play");
     println!("2. Play fast");
@@ -332,7 +332,7 @@ fn mcts_optimization_test(){
 fn mcts_strength_test(parallel:bool) {
     // Test the strenght of the mcts implementation by running it accros different seeds and with different time limits
     let fast = fastgame::FastGame::new();
-    let seeds:[usize;100] = core::array::from_fn(|i| i + 1);
+    let seeds:[usize;200] = core::array::from_fn(|i| i + 1);
     let iteration_limits:Vec<usize> = vec![1000];
     let iteration_count = 1;
     let mut average_scores = vec![0.0;iteration_limits.len()];
